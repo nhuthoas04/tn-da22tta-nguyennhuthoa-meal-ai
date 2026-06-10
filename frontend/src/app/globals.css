@@ -1,0 +1,232 @@
+@import "tailwindcss";
+
+@theme {
+  /* Brand Colors */
+  --color-brand-primary: #10b981;        /* Emerald */
+  --color-brand-primary-hover: #059669;  /* Emerald Hover */
+  --color-brand-secondary: #14b8a6;      /* Teal */
+  --color-brand-accent: #f59e0b;         /* Amber */
+  --color-brand-success: #22c55e;        /* Success Green */
+  --color-brand-warning: #f59e0b;        /* Warning Amber */
+  --color-brand-danger: #ef4444;         /* Danger Red */
+  --color-brand-info: #06b6d4;           /* Info Cyan */
+  
+  /* Dark Theme Colors (Refactored to Fresh Light Backdrops) */
+  --color-brand-navy: #fbfbfa;           /* Off White thay cho Navy */
+  --color-brand-navy-card: #ffffff;      /* White card thay cho dark card */
+  --color-brand-navy-border: #f1f5f9;    /* Light border */
+
+  /* Light Theme Colors (Internal Pages) */
+  --color-brand-light-bg: #fbfbfa;       /* Nền trang Off White tươi sáng */
+  --color-brand-light-card: #ffffff;     /* Card sáng */
+  --color-brand-light-border: #f1f5f9;   /* Border sáng mịn hơn */
+  --color-brand-secondary-bg: #f7f7f5;   /* Nền phụ sáng */
+  
+  /* Typography Text Colors */
+  --color-brand-heading: #0f172a;        /* Slate 900 */
+  --color-brand-body: #334155;           /* Slate 700 */
+  --color-brand-muted: #64748b;          /* Slate 500 */
+  
+  /* Typography Scale */
+  --font-brand-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  
+  /* Borders & Radius (Thống nhất toàn hệ thống) */
+  --radius-brand-lg: 1.5rem;             /* 24px - Dùng cho Dashboard Card, Hero Card */
+  --radius-brand-md: 1rem;               /* 16px - Dùng cho Recipe Card, Modal */
+  --radius-brand-sm: 0.5rem;             /* 8px - Dùng cho Button, Badge */
+  
+  /* Shadows (Thống nhất toàn hệ thống) */
+  --shadow-brand-sm: 0 1px 3px rgba(0,0,0,0.05);
+  --shadow-brand-md: 0 10px 30px -10px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02);
+  --shadow-brand-lg: 0 20px 40px -15px rgba(0, 0, 0, 0.08), 0 1px 5px rgba(0, 0, 0, 0.03);
+  --shadow-brand-glow: 0 0 20px 0px rgba(16, 185, 129, 0.15);
+  
+  /* Brand Transitions & Animations */
+  --animate-brand-float: float 4s ease-in-out infinite;
+  --animate-brand-float-slow: float-slow 6s ease-in-out infinite;
+  --animate-brand-glow: glow 8s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-12px) rotate(0.5deg); }
+}
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-8px) rotate(-0.5deg); }
+}
+@keyframes glow {
+  0%, 100% { opacity: 0.15; filter: blur(80px); }
+  50% { opacity: 0.25; filter: blur(100px); }
+}
+
+body {
+  font-family: var(--font-brand-sans);
+  background-color: var(--color-brand-light-bg);
+  color: var(--color-brand-body);
+  overflow-x: hidden;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* ==========================================================================
+   DESIGN SYSTEM - REUSABLE UTILITIES & COMPONENT STYLES
+   ========================================================================== */
+
+/* 1. BUTTONS */
+.btn-primary {
+  @apply bg-gradient-to-r from-brand-primary to-brand-secondary text-white font-bold rounded-brand-sm shadow-brand-sm hover:shadow-brand-glow hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 cursor-pointer flex items-center justify-center gap-2 px-4 py-2 text-sm border-none outline-none;
+}
+.btn-primary-sm {
+  @apply bg-gradient-to-r from-brand-primary to-brand-secondary text-white font-bold rounded-brand-sm shadow-brand-sm hover:shadow-brand-glow hover:scale-[1.01] active:scale-[0.99] transition-all duration-200 cursor-pointer flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs border-none outline-none;
+}
+
+.btn-secondary {
+  @apply bg-brand-secondary text-white font-bold rounded-brand-sm hover:bg-teal-600 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 cursor-pointer flex items-center justify-center gap-2 px-4 py-2 text-sm border-none outline-none;
+}
+.btn-secondary-sm {
+  @apply bg-brand-secondary text-white font-bold rounded-brand-sm hover:bg-teal-600 hover:scale-[1.01] active:scale-[0.99] transition-all duration-200 cursor-pointer flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs border-none outline-none;
+}
+
+.btn-outline {
+  @apply border border-brand-primary text-brand-primary font-bold rounded-brand-sm hover:bg-brand-primary hover:text-white transition-all duration-200 cursor-pointer flex items-center justify-center gap-2 px-4 py-2 text-sm outline-none;
+}
+.btn-outline-sm {
+  @apply border border-brand-primary text-brand-primary font-bold rounded-brand-sm hover:bg-brand-primary hover:text-white transition-all duration-200 cursor-pointer flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs outline-none;
+}
+
+.btn-ghost {
+  @apply text-slate-600 font-bold rounded-brand-sm hover:bg-slate-100 hover:text-slate-900 transition-all duration-200 cursor-pointer flex items-center justify-center gap-2 px-4 py-2 text-sm border-none outline-none;
+}
+.btn-ghost-sm {
+  @apply text-slate-600 font-bold rounded-brand-sm hover:bg-slate-100 hover:text-slate-900 transition-all duration-200 cursor-pointer flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs border-none outline-none;
+}
+
+/* 2. GLASSMORPHISM */
+.glass-light {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 8px 32px 0 rgba(15, 23, 42, 0.04);
+}
+
+.glass-ai {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.03) 0%, rgba(20, 184, 166, 0.03) 100%);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(16, 185, 129, 0.15);
+  box-shadow: 0 8px 32px 0 rgba(16, 185, 129, 0.04);
+}
+
+/* 3. CARDS */
+.card-dashboard {
+  @apply bg-brand-light-card border border-brand-light-border rounded-brand-lg p-6 shadow-brand-md transition-all duration-300;
+}
+
+.card-recipe {
+  @apply bg-brand-light-card border border-brand-light-border rounded-brand-md shadow-brand-sm hover:shadow-brand-lg hover:-translate-y-1 transition-all duration-300 overflow-hidden;
+}
+
+.card-stats {
+  @apply bg-brand-light-card border border-brand-light-border rounded-brand-md p-4 shadow-brand-sm transition-all duration-300;
+}
+
+.card-dark {
+  @apply bg-brand-navy-card border border-brand-navy-border rounded-brand-md p-5 shadow-brand-md hover:shadow-brand-lg transition-all duration-300;
+}
+
+/* 4. AI COMPONENTS LIBRARY */
+.card-ai-hero {
+  background: linear-gradient(135deg, #e8fbf3 0%, #e0f7f5 100%);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: var(--radius-brand-lg);
+  padding: 2rem;
+  color: var(--color-brand-heading);
+  box-shadow: var(--shadow-brand-md);
+  position: relative;
+  overflow: hidden;
+}
+
+.card-ai-insight {
+  background: linear-gradient(135deg, #10b981 0%, #14b8a6 100%);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: var(--radius-brand-lg);
+  padding: 1.5rem;
+  color: #ffffff;
+  box-shadow: var(--shadow-brand-glow);
+  position: relative;
+  overflow: hidden;
+}
+
+.card-ai-recommendation {
+  background: #ffffff;
+  border: 1px solid rgba(16, 185, 129, 0.15);
+  border-radius: var(--radius-brand-md);
+  box-shadow: var(--shadow-brand-sm);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+.card-ai-recommendation:hover {
+  box-shadow: var(--shadow-brand-glow), var(--shadow-brand-lg);
+  border-color: rgba(16, 185, 129, 0.35);
+  transform: translateY(-2px);
+}
+
+.card-ai-health-score {
+  background: #ffffff;
+  border: 1px solid var(--color-brand-light-border);
+  border-radius: var(--radius-brand-md);
+  padding: 1.25rem;
+  box-shadow: var(--shadow-brand-sm);
+  transition: all 0.3s ease;
+}
+.card-ai-health-score:hover {
+  box-shadow: var(--shadow-brand-md);
+  border-color: var(--color-brand-primary);
+}
+
+.card-ai-warning {
+  background: #ffffff;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: var(--radius-brand-md);
+  padding: 1.25rem;
+  box-shadow: var(--shadow-brand-sm);
+  transition: all 0.3s ease;
+}
+.card-ai-warning:hover {
+  box-shadow: 0 10px 25px -5px rgba(245, 158, 11, 0.15), var(--shadow-brand-sm);
+  border-color: rgba(245, 158, 11, 0.45);
+}
+
+/* 5. AI DESIGN BRANDING */
+.badge-ai {
+  @apply bg-gradient-to-r from-brand-primary to-brand-secondary text-white font-black text-[10px] tracking-wider uppercase px-2.5 py-1 rounded-brand-sm shadow-brand-glow flex items-center gap-1 border border-brand-primary/10 select-none;
+}
+
+.text-ai-gradient {
+  @apply bg-gradient-to-r from-brand-primary to-brand-secondary bg-clip-text text-transparent;
+}
+
+.bg-ai-gradient {
+  @apply bg-gradient-to-r from-brand-primary to-brand-secondary;
+}
