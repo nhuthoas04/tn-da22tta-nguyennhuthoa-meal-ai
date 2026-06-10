@@ -1,0 +1,554 @@
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, In, LessThanOrEqual } from 'typeorm';
+import { Recipe } from '../recipes/entities/recipe.entity';
+import { RecipeIngredient } from '../recipes/entities/recipe-ingredient.entity';
+import { Inventory } from '../inventory/entities/inventory.entity';
+import { User } from '../auth/entities/user.entity';
+import { UserPreference } from '../auth/entities/user-preference.entity';
+import { Favorite } from '../recipes/entities/favorite.entity';
+import { CalorieService } from './calorie.service';
+import { UserActionLog } from '../chatbot/entities/user-action-log.entity';
+
+/**
+ * Smart Recommendation Engine
+ * 
+ * Uses a hybrid scoring system with 5 weighted dimensions:
+ *   Score = 0.35×IngredientMatch + 0.25×WasteReduction
+ *         + 0.20×PreferenceMatch + 0.10×CookTimeScore
+ *         + 0.10×NutritionScore
+ */
+@Injectable()
+export class RecommendationService {
+    // Scoring weights (must sum to 1.0)
+    private readonly WEIGHTS = {
+        nutritionHealth: 0.30,
+        ingredientMatch: 0.25,
+        wasteReduction: 0.20,
+        preferenceMatch: 0.15,
+        cookTimeScore: 0.10,
+    };
+
+    // Anti-waste urgency tiers based on days until expiration
+    private readonly URGENCY_WEIGHTS: Record<string, number> = {
+        critical: 1.0,  // 0-1 days
+        high: 0.8,      // 2-3 days
+        medium: 0.5,    // 4-5 days
+        low: 0.3,       // 6-7 days
+    };
+
+    constructor(
+        @InjectRepository(Recipe) private recipeRepo: Repository<Recipe>,
+        @InjectRepository(RecipeIngredient) private riRepo: Repository<RecipeIngredient>,
+        @InjectRepository(Inventory) private inventoryRepo: Repository<Inventory>,
+        @InjectRepository(User) private userRepo: Repository<User>,
+        @InjectRepository(UserPreference) private prefRepo: Repository<UserPreference>,
+        @InjectRepository(Favorite) private favoriteRepo: Repository<Favorite>,
+        @InjectRepository(UserActionLog) private actionLogRepo: Repository<UserActionLog>,
+        private calorieService: CalorieService,
+    ) { }
+
+    /**
+     * Main recommendation endpoint
+     * Returns scored and ranked recipes for a given meal type
+     */
+    async getRecommendations(
+        userId: string,
+        mealType: string,
+        limit: number = 5,
+        useAntiWaste: boolean = true,
+        excludeIds?: string[],
+    ) {
+        // Load user context
+        const user = await this.userRepo.findOne({
+            where: { id: userId },
+            relations: ['preferences'],
+        });
+        const preferences = user.preferences;
+        const inventory = await this.inventoryRepo.find({
+            where: { userId },
+            relations: ['ingredient'],
+        });
+        const userActionLogs = await this.actionLogRepo.find({
+            where: { userId },
+            order: { createdAt: 'DESC' },
+            take: 100,
+        });
+
+        // Calculate calorie targets
+        const calorieTarget = this.calorieService.getMealDistribution(user.dailyCalorieTarget);
+        const targetForMeal = calorieTarget ? (calorieTarget[mealType] || 700) : 700;
+
+        // Get user's favorited recipe IDs for preference scoring
+        const favorites = await this.favoriteRepo.find({ where: { userId } });
+        const favRecipeIds = new Set(favorites.map((f) => f.recipeId));
+
+        // ========== STAGE 1: PRE-FILTER ==========
+        let recipes = await this.recipeRepo.find({
+            where: { isActive: true, status: 'approved' },
+            relations: ['recipeIngredients', 'recipeIngredients.ingredient'],
+        });
+
+        // Filter out excluded recipe IDs
+        if (excludeIds && excludeIds.length > 0) {
+            recipes = recipes.filter((r) => !excludeIds.includes(r.id));
+        }
+
+        // Filter by meal type
+        recipes = recipes.filter((r) =>
+            r.mealType && r.mealType.includes(mealType),
+        );
+
+        // Filter by dietary restrictions
+        if (preferences?.dietType === 'vegetarian') {
+            recipes = recipes.filter((r) => r.tags?.includes('chay'));
+        } else if (preferences?.dietType === 'keto') {
+            recipes = recipes.filter((r) => 
+                r.tags?.includes('keto') || 
+                (Number(r.carbs) <= 15 && Number(r.fat) >= 10)
+            );
+        } else if (preferences?.dietType === 'lowcarb' || preferences?.dietType === 'low_carb') {
+            recipes = recipes.filter((r) => 
+                r.tags?.includes('lowcarb') || 
+                r.tags?.includes('low carb') || 
+                Number(r.carbs) <= 30
+            );
+        }
+
+        // Filter by max cooking time
+        if (preferences?.maxCookingTime) {
+            recipes = recipes.filter((r) => r.cookingTime <= preferences.maxCookingTime);
+        }
+
+        // Filter by budget
+        if (preferences?.budgetPerMeal) {
+            recipes = recipes.filter(
+                (r) => !r.estimatedCost || r.estimatedCost <= Number(preferences.budgetPerMeal),
+            );
+        }
+
+        // Filter out allergens (robust substring matching to avoid safety bugs)
+        if (preferences?.allergies?.length) {
+            recipes = recipes.filter((r) => {
+                const ingredientNames = r.recipeIngredients?.map((ri) => ri.ingredient?.name?.toLowerCase() || '') || [];
+                return !preferences.allergies.some((allergen) => {
+                    const lowercaseAllergen = allergen.toLowerCase().trim();
+                    if (!lowercaseAllergen) return false;
+                    return ingredientNames.some((name) => name.includes(lowercaseAllergen));
+                });
+            });
+        }
+
+        // Parse health conditions
+        const healthConditions = preferences?.healthConditions
+            ? preferences.healthConditions.split(',').map((c) => c.trim().toLowerCase())
+            : [];
+
+        // 1.1. Diabetes Filter (Loại món ăn nhiều đường)
+        if (healthConditions.includes('diabetes')) {
+            const maxSugar = preferences?.maxSugarPerMeal ? Number(preferences.maxSugarPerMeal) : 5.0;
+            recipes = recipes.filter(r => (r.sugar ? Number(r.sugar) : 0) <= maxSugar);
+        }
+
+        // 1.2. Hypertension Filter (Loại món ăn nhiều muối/natri)
+        if (healthConditions.includes('hypertension')) {
+            const maxSodium = preferences?.maxSodiumPerMeal ? Number(preferences.maxSodiumPerMeal) : 500.0;
+            recipes = recipes.filter(r => (r.sodium ? Number(r.sodium) : 0) <= maxSodium);
+        }
+
+        // 1.3. Weight Loss Calorie Limit Filter (Loại món vượt calorie mục tiêu bữa ăn 110%)
+        if (healthConditions.includes('weight_loss') || preferences?.dietType === 'weight_loss') {
+            recipes = recipes.filter(r => r.calories <= targetForMeal * 1.1);
+        }
+
+        // 1.4. Muscle Gain Protein Minimum Filter (Loại món không đáp ứng protein tối thiểu)
+        if (healthConditions.includes('muscle_gain')) {
+            const minProtein = preferences?.minProteinPerMeal ? Number(preferences.minProteinPerMeal) : 25.0;
+            recipes = recipes.filter(r => Number(r.protein) >= minProtein);
+        }
+
+        // ========== STAGE 2: SCORING ==========
+        const inventoryMap = new Map<string, Inventory>();
+        inventory.forEach((inv) => inventoryMap.set(inv.ingredientId, inv));
+
+        // Calculate expiring ingredients for anti-waste scoring
+        const expiringItems = inventory.filter((inv) => {
+            if (!inv.expirationDate) return false;
+            const daysLeft = this.getDaysLeft(inv.expirationDate);
+            return daysLeft <= 7 && daysLeft >= 0;
+        });
+
+        // Compute dynamic user habits scoring map
+        const habitScores = this.applyHabitScoring(recipes, userActionLogs);
+
+        const scored = recipes.map((recipe) => {
+            const scores = {
+                nutritionScore: this.scoreNutrition(recipe, targetForMeal),
+                ingredientMatch: this.scoreIngredientMatch(recipe, inventoryMap),
+                wasteReduction: useAntiWaste
+                    ? this.scoreWasteReduction(recipe, expiringItems)
+                    : 0,
+                preferenceMatch: this.scorePreferenceMatch(
+                    recipe, preferences, favRecipeIds,
+                ),
+                cookTimeScore: this.scoreCookTime(recipe, preferences?.maxCookingTime || 60),
+            };
+
+            // Weighted sum matching new Stage 2 formula
+            let total =
+                scores.nutritionScore * this.WEIGHTS.nutritionHealth +
+                scores.ingredientMatch * this.WEIGHTS.ingredientMatch +
+                scores.wasteReduction * this.WEIGHTS.wasteReduction +
+                scores.preferenceMatch * this.WEIGHTS.preferenceMatch +
+                scores.cookTimeScore * this.WEIGHTS.cookTimeScore;
+
+            // Apply user habit adjustments
+            const habitAdjust = habitScores.get(recipe.id) || 0;
+            total = Math.max(0, Math.min(1.0, total + habitAdjust));
+
+            // Generate human-readable reasons
+            const reasons = this.generateReasons(recipe, scores, expiringItems, targetForMeal, habitAdjust);
+
+            // Find which inventory items match and which are missing
+            const matchedInventory = [];
+            const missingIngredients = [];
+
+            for (const ri of recipe.recipeIngredients) {
+                const inv = inventoryMap.get(ri.ingredientId);
+                if (inv) {
+                    const daysLeft = inv.expirationDate ? this.getDaysLeft(inv.expirationDate) : null;
+                    matchedInventory.push({
+                        name: ri.ingredient.name,
+                        daysLeft,
+                        urgency: daysLeft !== null ? this.getUrgencyLabel(daysLeft) : null,
+                    });
+                } else {
+                    missingIngredients.push({
+                        name: ri.ingredient.name,
+                        quantity: ri.quantity,
+                        unit: ri.unit,
+                        estimatedPrice: ri.ingredient.averagePrice || null,
+                    });
+                }
+            }
+
+            return {
+                recipe: {
+                    id: recipe.id,
+                    name: recipe.name,
+                    imageUrl: recipe.imageUrl,
+                    cookingTime: recipe.cookingTime,
+                    calories: recipe.calories,
+                    protein: Number(recipe.protein),
+                    carbs: Number(recipe.carbs),
+                    fat: Number(recipe.fat),
+                    tags: recipe.tags,
+                },
+                score: {
+                    total: Math.round(total * 100) / 100,
+                    ...scores,
+                },
+                reasons,
+                matchedInventory,
+                missingIngredients,
+            };
+        });
+
+        // ========== STAGE 3: RANK & DEDUPLICATE ==========
+        scored.sort((a, b) => b.score.total - a.score.total);
+
+        return {
+            calorieTarget: {
+                daily: user.dailyCalorieTarget,
+                ...calorieTarget,
+                targetForMeal,
+            },
+            recommendations: scored.slice(0, limit),
+        };
+    }
+
+    /**
+     * Anti-waste specific endpoint
+     * Returns recipes optimized for using expiring ingredients
+     */
+    async getAntiWasteSuggestions(userId: string) {
+        const inventory = await this.inventoryRepo.find({
+            where: { userId },
+            relations: ['ingredient'],
+        });
+
+        const expiringItems = inventory
+            .filter((inv) => {
+                if (!inv.expirationDate) return false;
+                const daysLeft = this.getDaysLeft(inv.expirationDate);
+                return daysLeft <= 7 && daysLeft >= 0;
+            })
+            .map((inv) => ({
+                name: inv.ingredient.name,
+                daysLeft: this.getDaysLeft(inv.expirationDate),
+                urgency: this.getUrgencyLabel(this.getDaysLeft(inv.expirationDate)),
+                quantity: inv.quantity,
+                unit: inv.unit,
+            }))
+            .sort((a, b) => a.daysLeft - b.daysLeft);
+
+        // Get recommendations prioritizing anti-waste
+        const result = await this.getRecommendations(userId, 'lunch', 5, true);
+
+        return {
+            expiringIngredients: expiringItems,
+            suggestions: result.recommendations.map((r) => ({
+                recipe: r.recipe,
+                wasteScore: r.score.wasteReduction,
+                usesExpiring: r.matchedInventory.filter((i) => i.urgency),
+                reason: `Sử dụng ${r.matchedInventory.filter((i) => i.urgency).length} nguyên liệu sắp hết hạn`,
+            })),
+        };
+    }
+
+    // ==================== SCORING FUNCTIONS ====================
+
+    /**
+     * Dimension 1: Ingredient Match (weight = 0.35)
+     * Measures how well a recipe uses what the user already has
+     * Score = |recipe_ingredients ∩ user_inventory| / |recipe_ingredients|
+     */
+    private scoreIngredientMatch(
+        recipe: Recipe,
+        inventoryMap: Map<string, Inventory>,
+    ): number {
+        const total = recipe.recipeIngredients.length;
+        if (total === 0) return 0;
+
+        const matched = recipe.recipeIngredients.filter(
+            (ri) => inventoryMap.has(ri.ingredientId),
+        ).length;
+
+        return matched / total;
+    }
+
+    /**
+     * Dimension 2: Waste Reduction (weight = 0.25)
+     * Rewards recipes that use ingredients close to expiration
+     * 
+     * WasteScore = Σ(urgency_weight × is_used) / |expiring_ingredients|
+     */
+    private scoreWasteReduction(
+        recipe: Recipe,
+        expiringItems: Inventory[],
+    ): number {
+        if (expiringItems.length === 0) return 0;
+
+        const recipeIngredientIds = new Set(
+            recipe.recipeIngredients.map((ri) => ri.ingredientId),
+        );
+
+        let totalUrgency = 0;
+        for (const item of expiringItems) {
+            if (recipeIngredientIds.has(item.ingredientId)) {
+                const daysLeft = this.getDaysLeft(item.expirationDate);
+                totalUrgency += this.getUrgencyWeight(daysLeft);
+            }
+        }
+
+        return totalUrgency / expiringItems.length;
+    }
+
+    /**
+     * Dimension 3: User Preference Match (weight = 0.20)
+     * Matches recipe attributes to user's saved preferences
+     */
+    private scorePreferenceMatch(
+        recipe: Recipe,
+        preferences: UserPreference | null,
+        favRecipeIds: Set<string>,
+    ): number {
+        if (!preferences) return 0.5; // Neutral if no preferences set
+
+        let score = 0;
+        let checks = 0;
+
+        // Check cuisine tags
+        if (preferences.cuisineTags?.length) {
+            checks++;
+            const match = preferences.cuisineTags.some(
+                (tag) => recipe.tags?.includes(tag) || recipe.cuisineRegion === tag,
+            );
+            if (match) score += 1;
+        }
+
+        // Check liked ingredients (bonus)
+        if (preferences.likedIngredients?.length && recipe.recipeIngredients) {
+            checks++;
+            const ingredientNames = recipe.recipeIngredients.map((ri) => ri.ingredient?.name);
+            const likedUsed = preferences.likedIngredients.filter(
+                (liked) => ingredientNames.includes(liked),
+            ).length;
+            score += likedUsed > 0 ? Math.min(likedUsed / preferences.likedIngredients.length, 1) : 0;
+        }
+
+        // Check disliked ingredients (penalty)
+        if (preferences.dislikedIngredients?.length && recipe.recipeIngredients) {
+            checks++;
+            const ingredientNames = recipe.recipeIngredients.map((ri) => ri.ingredient?.name);
+            const hasDisliked = preferences.dislikedIngredients.some(
+                (disliked) => ingredientNames.includes(disliked),
+            );
+            score += hasDisliked ? 0 : 1; // Full score if no disliked ingredients
+        }
+
+        // Bonus for previously favorited category
+        if (favRecipeIds.size > 0) {
+            checks++;
+            score += favRecipeIds.has(recipe.id) ? 1 : 0;
+        }
+
+        return checks > 0 ? score / checks : 0.5;
+    }
+
+    /**
+     * Dimension 4: Cooking Time Score (weight = 0.10)
+     * Faster recipes (within user's limit) score higher
+     * CookTimeScore = 1 − (recipe_time / max_time)
+     */
+    private scoreCookTime(recipe: Recipe, maxTime: number): number {
+        if (recipe.cookingTime > maxTime) return 0;
+        return 1 - recipe.cookingTime / maxTime;
+    }
+
+    /**
+     * Dimension 5: Nutrition Score (weight = 0.10)
+     * How well recipe calories match the meal target
+     * NutritionScore = max(0, 1 − |recipe_cal − target| / target)
+     */
+    private scoreNutrition(recipe: Recipe, targetCalories: number): number {
+        const deviation = Math.abs(recipe.calories - targetCalories) / targetCalories;
+        return Math.max(0, 1 - deviation);
+    }
+
+    // ==================== ANTI-WASTE HELPERS ====================
+
+    private getDaysLeft(expirationDate: Date): number {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const exp = new Date(expirationDate);
+        exp.setHours(0, 0, 0, 0);
+        return Math.floor((exp.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    }
+
+    /**
+     * Urgency weight based on days until expiration
+     * CRITICAL (0-1 days) → 1.0
+     * HIGH     (2-3 days) → 0.8
+     * MEDIUM   (4-5 days) → 0.5
+     * LOW      (6-7 days) → 0.3
+     */
+    private getUrgencyWeight(daysLeft: number): number {
+        if (daysLeft <= 1) return 1.0;
+        if (daysLeft <= 3) return 0.8;
+        if (daysLeft <= 5) return 0.5;
+        if (daysLeft <= 7) return 0.3;
+        return 0;
+    }
+
+    private getUrgencyLabel(daysLeft: number): string | null {
+        if (daysLeft <= 1) return 'critical';
+        if (daysLeft <= 3) return 'high';
+        if (daysLeft <= 5) return 'medium';
+        if (daysLeft <= 7) return 'low';
+        return null;
+    }
+
+    /**
+     * Generate human-readable reasons explaining WHY this recipe was recommended
+     * This is for the "Recommendation Explanation" bonus feature
+     */
+    private generateReasons(
+        recipe: Recipe,
+        scores: Record<string, number>,
+        expiringItems: Inventory[],
+        targetCalories: number,
+        habitAdjust: number = 0,
+    ): string[] {
+        const reasons: string[] = [];
+
+        // Anti-waste reason
+        if (scores.wasteReduction > 0.3) {
+            const usedExpiring = expiringItems.filter((item) =>
+                recipe.recipeIngredients?.some((ri) => ri.ingredientId === item.ingredientId),
+            );
+            if (usedExpiring.length > 0) {
+                const names = usedExpiring.map((i) => {
+                    const d = this.getDaysLeft(i.expirationDate);
+                    return `${i.ingredient.name} (còn ${d} ngày)`;
+                });
+                reasons.push(`Sử dụng nguyên liệu sắp hết hạn: ${names.join(', ')}`);
+            }
+        }
+
+        // Ingredient match reason
+        if (scores.ingredientMatch > 0.5) {
+            reasons.push(`Bạn đã có ${Math.round(scores.ingredientMatch * 100)}% nguyên liệu`);
+        }
+
+        // Nutrition reason
+        if (scores.nutritionScore > 0.8) {
+            reasons.push(`Calories phù hợp mục tiêu (${recipe.calories}/${targetCalories} kcal)`);
+        }
+
+        // Preference reason
+        if (scores.preferenceMatch > 0.6) {
+            reasons.push('Phù hợp khẩu vị của bạn');
+        }
+
+        // Quick cook reason
+        if (recipe.cookingTime <= 20) {
+            reasons.push(`Nấu nhanh chỉ ${recipe.cookingTime} phút`);
+        }
+
+        // Habit learning reason
+        if (habitAdjust > 0.05) {
+            reasons.push('Được ưu tiên dựa trên thói quen ăn uống của bạn');
+        } else if (habitAdjust < -0.05) {
+            reasons.push('Hạn chế xuất hiện do bạn từ chối món này gần đây');
+        }
+
+        return reasons;
+    }
+
+    /**
+     * Dynamically adjusts recommendation scores based on user action logs (habit learning)
+     */
+    private applyHabitScoring(recipes: Recipe[], logs: UserActionLog[]): Map<string, number> {
+        const scores = new Map<string, number>();
+        const rejectCounts = new Map<string, number>();
+        const acceptCounts = new Map<string, number>();
+
+        for (const log of logs) {
+            if (!log.recipeId) continue;
+            if (log.actionType === 'reject') {
+                rejectCounts.set(log.recipeId, (rejectCounts.get(log.recipeId) || 0) + 1);
+            } else if (log.actionType === 'accept') {
+                acceptCounts.set(log.recipeId, (acceptCounts.get(log.recipeId) || 0) + 1);
+            }
+        }
+
+        for (const recipe of recipes) {
+            let habitAdjustment = 0;
+
+            const rejects = rejectCounts.get(recipe.id) || 0;
+            if (rejects > 0) {
+                habitAdjustment -= Math.min(rejects * 0.15, 0.45); // Deduct up to -0.45
+            }
+
+            const accepts = acceptCounts.get(recipe.id) || 0;
+            if (accepts > 0) {
+                habitAdjustment += Math.min(accepts * 0.1, 0.3); // Bonus up to +0.3
+            }
+
+            scores.set(recipe.id, habitAdjustment);
+        }
+
+        return scores;
+    }
+}
