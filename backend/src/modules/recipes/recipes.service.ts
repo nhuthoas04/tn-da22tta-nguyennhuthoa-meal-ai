@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { MoreThan, Repository } from 'typeorm';
 import { Recipe } from './entities/recipe.entity';
 import { Favorite } from './entities/favorite.entity';
 import { Ingredient } from './entities/ingredient.entity';
@@ -8,22 +8,26 @@ import { RecipeIngredient } from './entities/recipe-ingredient.entity';
 import { RecipeRating } from './entities/recipe-rating.entity';
 import { RecipeRatingService } from './recipe-rating.service';
 import { CreateRecipeDto } from './dto/create-recipe.dto';
-import { RecipeLike } from './entities/recipe-like.entity';
-import { User } from '../auth/entities/user.entity';
+import { RecipeView } from './entities/recipe-view.entity';
 import { NotificationService } from '../notification/notification.service';
 
 @Injectable()
-export class RecipesService {
+export class RecipesService implements OnModuleInit {
+    private readonly viewCooldownMs = 6 * 60 * 60 * 1000;
+
     constructor(
         @InjectRepository(Recipe) private recipeRepo: Repository<Recipe>,
         @InjectRepository(Favorite) private favoriteRepo: Repository<Favorite>,
         @InjectRepository(Ingredient) private ingredientRepo: Repository<Ingredient>,
         @InjectRepository(RecipeIngredient) private riRepo: Repository<RecipeIngredient>,
-        @InjectRepository(RecipeLike) private likeRepo: Repository<RecipeLike>,
-        @InjectRepository(User) private userRepo: Repository<User>,
+        @InjectRepository(RecipeView) private viewRepo: Repository<RecipeView>,
         private readonly ratingService: RecipeRatingService,
         private readonly notificationService: NotificationService,
     ) { }
+
+    async onModuleInit() {
+        await this.migrateLikesToFavorites();
+    }
 
     /**
      * List recipes with search, filtering, and pagination
@@ -41,7 +45,7 @@ export class RecipesService {
         region?: string;
         sort?: string;
         status?: string; // Admin can filter by status
-    }) {
+    }, currentUserId?: string) {
         const page = query.page || 1;
         const limit = query.limit || 12;
 
@@ -89,14 +93,80 @@ export class RecipesService {
         const sortField = query.sort || 'createdAt';
         qb.orderBy(`recipe.${sortField}`, 'DESC');
 
-        // Pagination
-        const [data, total] = await qb
+        qb
+            .addSelect((subQuery) => subQuery
+                .select('COALESCE(ROUND(AVG(rating.rating)::numeric, 1), 0)')
+                .from(RecipeRating, 'rating')
+                .where('rating.recipeId = recipe.id')
+                .andWhere('rating.parentId IS NULL')
+                .andWhere('rating.rating IS NOT NULL')
+                .andWhere('rating.moderationStatus = :reviewedStatus'),
+                'averageRating',
+            )
+            .addSelect((subQuery) => subQuery
+                .select('COUNT(*)')
+                .from(RecipeRating, 'rating')
+                .where('rating.recipeId = recipe.id')
+                .andWhere('rating.parentId IS NULL')
+                .andWhere('rating.rating IS NOT NULL')
+                .andWhere('rating.moderationStatus = :reviewedStatus'),
+                'reviewCount',
+            )
+            .addSelect((subQuery) => subQuery
+                .select('COUNT(*)')
+                .from(Favorite, 'favorite')
+                .where('favorite.recipeId = recipe.id'),
+                'favoriteCount',
+            )
+            .addSelect((subQuery) => subQuery
+                .select('GREATEST(COALESCE(recipe.views, 0), COUNT(recipeView.id))')
+                .from(RecipeView, 'recipeView')
+                .where('recipeView.recipeId = recipe.id'),
+                'viewCount',
+            )
+            .setParameter('reviewedStatus', 'reviewed');
+
+        if (currentUserId) {
+            qb
+                .addSelect((subQuery) => subQuery
+                    .select('COUNT(*)')
+                    .from(Favorite, 'userFavorite')
+                    .where('userFavorite.recipeId = recipe.id')
+                    .andWhere('userFavorite.userId = :currentUserId'),
+                    'isFavoriteCount',
+                )
+                .setParameter('currentUserId', currentUserId);
+        }
+
+        const total = await qb.getCount();
+
+        const { entities, raw } = await qb
             .skip((page - 1) * limit)
             .take(limit)
-            .getManyAndCount();
+            .getRawAndEntities();
+
+        const statsByRecipeId = new Map(
+            raw.map((row) => [
+                row.recipe_id,
+                {
+                    averageRating: Number(parseFloat(row.averageRating ?? row.averagerating ?? '0').toFixed(1)),
+                    reviewCount: Number(row.reviewCount ?? row.reviewcount ?? 0),
+                    favoriteCount: Number(row.favoriteCount ?? row.favoritecount ?? 0),
+                    viewCount: Number(row.viewCount ?? row.viewcount ?? 0),
+                    isFavorite: Number(row.isFavoriteCount ?? row.isfavoritecount ?? 0) > 0,
+                },
+            ]),
+        );
 
         return {
-            data,
+            data: entities.map((recipe) => ({
+                ...recipe,
+                averageRating: statsByRecipeId.get(recipe.id)?.averageRating ?? 0,
+                reviewCount: statsByRecipeId.get(recipe.id)?.reviewCount ?? 0,
+                favoriteCount: statsByRecipeId.get(recipe.id)?.favoriteCount ?? 0,
+                isFavorite: statsByRecipeId.get(recipe.id)?.isFavorite ?? false,
+                viewCount: statsByRecipeId.get(recipe.id)?.viewCount ?? 0,
+            })),
             meta: {
                 page,
                 limit,
@@ -109,7 +179,10 @@ export class RecipesService {
     /**
      * Get full recipe details with ingredients and steps
      */
-    async findOne(id: string, userId?: string) {
+    async findOne(
+        id: string,
+        options?: { userId?: string; viewerKey?: string; userAgent?: string | null },
+    ) {
         const recipe = await this.recipeRepo.findOne({
             where: { id },
             relations: ['recipeIngredients', 'recipeIngredients.ingredient', 'submitter'],
@@ -117,24 +190,25 @@ export class RecipesService {
 
         if (!recipe) throw new NotFoundException('Recipe not found');
 
-        // Increment view count
-        recipe.views = (recipe.views || 0) + 1;
-        await this.recipeRepo.save(recipe);
+        await this.recordRecipeView(
+            id,
+            options?.userId,
+            options?.viewerKey,
+            options?.userAgent,
+        );
 
         // Check if favorited by current user
-        let isFavorited = false;
-        let isLiked = false;
-        if (userId) {
-            const [fav, like] = await Promise.all([
-                this.favoriteRepo.findOne({ where: { userId, recipeId: id } }),
-                this.likeRepo.findOne({ where: { userId, recipeId: id } }),
-            ]);
-            isFavorited = !!fav;
-            isLiked = !!like;
+        let isFavorite = false;
+        if (options?.userId) {
+            const fav = await this.favoriteRepo.findOne({ where: { userId: options.userId, recipeId: id } });
+            isFavorite = !!fav;
         }
 
-        // Fetch rating stats
-        const ratingStats = await this.ratingService.getAverageRatingForRecipe(id);
+        const [ratingStats, favoriteCount, viewCount] = await Promise.all([
+            this.ratingService.getAverageRatingForRecipe(id),
+            this.favoriteRepo.count({ where: { recipeId: id } }),
+            this.getRecipeViewCount(id, recipe.views || 0),
+        ]);
 
         return {
             ...recipe,
@@ -145,10 +219,14 @@ export class RecipesService {
                 unit: ri.unit,
                 isOptional: ri.isOptional,
             })),
-            isFavorited,
-            isLiked,
+            isFavorite,
+            isFavorited: isFavorite,
             averageRating: ratingStats.average,
+            reviewCount: ratingStats.count,
             totalRatings: ratingStats.count,
+            favoriteCount,
+            viewCount,
+            views: viewCount,
             submitterName: recipe.submitter?.fullName || null,
             recipeIngredients: undefined, // Remove raw junction data
             submitter: undefined,
@@ -168,7 +246,13 @@ export class RecipesService {
 
         if (existing) {
             await this.favoriteRepo.remove(existing);
-            return { isFavorited: false, message: 'Recipe removed from favorites' };
+            const favoriteCount = await this.favoriteRepo.count({ where: { recipeId } });
+            return {
+                isFavorite: false,
+                isFavorited: false,
+                favoriteCount,
+                message: 'Recipe removed from favorites',
+            };
         }
 
         const favorite = this.favoriteRepo.create({ userId, recipeId });
@@ -185,7 +269,13 @@ export class RecipesService {
             );
         }
 
-        return { isFavorited: true, message: 'Recipe added to favorites' };
+        const favoriteCount = await this.favoriteRepo.count({ where: { recipeId } });
+        return {
+            isFavorite: true,
+            isFavorited: true,
+            favoriteCount,
+            message: 'Recipe added to favorites',
+        };
     }
 
     /**
@@ -539,38 +629,54 @@ export class RecipesService {
         }
     }
 
-    /**
-     * Toggle like on a recipe
-     */
-    async toggleLike(userId: string, recipeId: string) {
-        const recipe = await this.recipeRepo.findOne({ where: { id: recipeId } });
-        if (!recipe) throw new NotFoundException('Không tìm thấy công thức món ăn.');
+    private async recordRecipeView(
+        recipeId: string,
+        userId?: string,
+        viewerKey?: string,
+        userAgent?: string | null,
+    ) {
+        if (!viewerKey) return;
 
-        const existing = await this.likeRepo.findOne({
-            where: { userId, recipeId },
+        const since = new Date(Date.now() - this.viewCooldownMs);
+        const recentViews = await this.viewRepo.count({
+            where: {
+                recipeId,
+                viewerKey,
+                createdAt: MoreThan(since),
+            },
         });
 
-        if (existing) {
-            await this.likeRepo.remove(existing);
-            return { isLiked: false, message: 'Đã bỏ thích công thức món ăn.' };
+        if (recentViews > 0) return;
+
+        await this.viewRepo.save(this.viewRepo.create({
+            recipeId,
+            userId: userId || null,
+            viewerKey,
+            userAgent: userAgent ? userAgent.slice(0, 255) : null,
+        }));
+
+        await this.recipeRepo.increment({ id: recipeId }, 'views', 1);
+    }
+
+    private async getRecipeViewCount(recipeId: string, legacyViews: number) {
+        const trackedViews = await this.viewRepo.count({ where: { recipeId } });
+        return Math.max(legacyViews, trackedViews);
+    }
+
+    private async migrateLikesToFavorites() {
+        try {
+            await this.favoriteRepo.manager.query(`
+                INSERT INTO "favorites" ("userId", "recipeId", "createdAt")
+                SELECT rl."userId", rl."recipeId", MIN(rl."createdAt")
+                FROM "recipe_likes" rl
+                LEFT JOIN "favorites" f
+                    ON f."userId" = rl."userId"
+                    AND f."recipeId" = rl."recipeId"
+                WHERE f."id" IS NULL
+                GROUP BY rl."userId", rl."recipeId"
+            `);
+        } catch {
+            // New installations may not have the legacy recipe_likes table.
         }
-
-        const like = this.likeRepo.create({ userId, recipeId });
-        await this.likeRepo.save(like);
-
-        // Send notification if not self-action
-        if (recipe.submittedBy) {
-            const actor = await this.userRepo.findOne({ where: { id: userId } });
-            const actorName = actor?.fullName || 'Ai đó';
-            await this.notificationService.createNotification(
-                recipe.submittedBy,
-                userId,
-                recipeId,
-                'LIKE_POST',
-                `${actorName} đã thích bài viết của bạn.`
-            );
-        }
-
-        return { isLiked: true, message: 'Đã thích công thức món ăn.' };
     }
 }

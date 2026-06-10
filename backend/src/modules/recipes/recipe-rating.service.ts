@@ -358,6 +358,8 @@ export class RecipeRatingService {
       .addSelect('COUNT(rating.id)', 'count')
       .where('rating.recipeId = :recipeId', { recipeId })
       .andWhere('rating.moderationStatus = :status', { status: 'reviewed' })
+      .andWhere('rating.parentId IS NULL')
+      .andWhere('rating.rating IS NOT NULL')
       .getRawOne();
 
     const count = parseInt(result?.count || '0', 10);

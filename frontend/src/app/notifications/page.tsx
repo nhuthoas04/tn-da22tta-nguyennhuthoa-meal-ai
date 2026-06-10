@@ -70,7 +70,6 @@ export default function NotificationsPage() {
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
-      case 'LIKE_POST': return '👍';
       case 'RATE_POST': return '⭐';
       case 'COMMENT_POST': return '💬';
       case 'REPLY_COMMENT': return '↩️';

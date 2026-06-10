@@ -20,7 +20,7 @@ export class Notification {
     postId: string; // Recipe associated with the notification
 
     @Column({ type: 'varchar', length: 50 })
-    type: string; // LIKE_POST | RATE_POST | COMMENT_POST | REPLY_COMMENT | SAVE_RECIPE
+    type: string; // RATE_POST | COMMENT_POST | REPLY_COMMENT | SAVE_RECIPE
 
     @Column({ type: 'text' })
     message: string;

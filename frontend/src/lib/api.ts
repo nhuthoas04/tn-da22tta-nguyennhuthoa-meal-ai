@@ -76,8 +76,6 @@ export const recipesAPI = {
         api.put(`/recipes/${recipeId}/ratings/${ratingId}`, data),
     deleteRating: (recipeId: string, ratingId: string) =>
         api.delete(`/recipes/${recipeId}/ratings/${ratingId}`),
-    toggleLike: (id: string) =>
-        api.post(`/recipes/${id}/like`),
     createReply: (recipeId: string, parentId: string, data: { review: string }) =>
         api.post(`/recipes/${recipeId}/ratings/${parentId}/replies`, data),
 };

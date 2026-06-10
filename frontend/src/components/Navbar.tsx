@@ -7,7 +7,7 @@ import { adminModerationAPI } from '@/lib/api';
 import {
   HiHome, HiBookOpen, HiCalendar, HiShoppingCart,
   HiCube, HiUser, HiMenu, HiX, HiLogout, HiSparkles, HiChartBar,
-  HiShieldCheck, HiBell,
+  HiShieldCheck, HiBell, HiHeart,
 } from 'react-icons/hi';
 import { notificationsAPI } from '@/lib/api';
 import { useRouter } from 'next/navigation';
@@ -16,6 +16,7 @@ import toast from 'react-hot-toast';
 const navItems = [
   { href: '/', label: 'Trang chủ', icon: HiHome },
   { href: '/recipes', label: 'Công thức', icon: HiBookOpen },
+  { href: '/favorites', label: 'Yêu thích', icon: HiHeart },
   { href: '/meal-planner', label: 'Thực đơn', icon: HiCalendar },
   { href: '/nutrition', label: 'Dinh dưỡng', icon: HiChartBar },
   { href: '/insights', label: 'AI Insights', icon: HiSparkles },
@@ -128,7 +129,6 @@ export default function Navbar() {
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
-      case 'LIKE_POST': return '👍';
       case 'RATE_POST': return '⭐';
       case 'COMMENT_POST': return '💬';
       case 'REPLY_COMMENT': return '↩️';

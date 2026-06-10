@@ -4,6 +4,18 @@ import { recipesAPI } from '@/lib/api';
 import Link from 'next/link';
 import { HiSearch, HiClock, HiFire, HiAdjustments } from 'react-icons/hi';
 
+const formatCount = (value: unknown) => {
+  const count = Number(value) || 0;
+  if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(count >= 10_000_000 ? 0 : 1)}M`;
+  if (count >= 1_000) return `${(count / 1_000).toFixed(count >= 10_000 ? 0 : 1)}K`;
+  return String(count);
+};
+
+const formatRating = (value: unknown) => {
+  const rating = Number(value) || 0;
+  return rating.toFixed(1);
+};
+
 export default function RecipesPage() {
   const [recipes, setRecipes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -153,6 +165,15 @@ export default function RecipesPage() {
                   <h3 className="font-bold text-slate-800 group-hover:text-brand-primary transition-all line-clamp-1 text-sm">
                     {recipe.name}
                   </h3>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-semibold text-slate-500">
+                    <span>
+                      {(Number(recipe.reviewCount) || 0) > 0
+                        ? `⭐ ${formatRating(recipe.averageRating)} (${formatCount(recipe.reviewCount)})`
+                        : '⭐ Chưa có đánh giá'}
+                    </span>
+                    <span>❤️ {formatCount(recipe.favoriteCount)}</span>
+                    <span>👁️ {formatCount(recipe.viewCount)}</span>
+                  </div>
                   <p className="text-xs text-slate-400 mt-1 line-clamp-2">{recipe.description}</p>
                 </div>
                 <div className="mt-3">

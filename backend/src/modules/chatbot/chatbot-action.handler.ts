@@ -54,7 +54,7 @@ export class ChatbotActionHandler {
             const filteredRecipes = [];
             
             for (const recipe of rawResults.data) {
-              const detailedRecipe = await this.recipesService.findOne(recipe.id, userId);
+              const detailedRecipe = await this.recipesService.findOne(recipe.id, { userId });
               const hasAllergen = detailedRecipe.ingredients?.some((ing) => {
                 const ingName = ing.name?.toLowerCase() || '';
                 return lowercaseAllergens.some(allergen => ingName.includes(allergen));
@@ -74,7 +74,7 @@ export class ChatbotActionHandler {
           return rawResults;
 
         case 'get_recipe_detail':
-          return await this.recipesService.findOne(args.recipeId, userId);
+          return await this.recipesService.findOne(args.recipeId, { userId });
 
         case 'get_recommendations':
           return await this.recommendationService.getRecommendations(
@@ -325,7 +325,7 @@ export class ChatbotActionHandler {
           if (!ratingRecipeId) {
             return { error: 'Thiếu thông tin món ăn (cần recipeId hoặc recipeName).' };
           }
-          const ratingStats = await this.recipesService.findOne(ratingRecipeId, userId);
+          const ratingStats = await this.recipesService.findOne(ratingRecipeId, { userId });
           const ratingsList = await this.recipeRatingService.getRatingsForRecipe(ratingRecipeId, 1, 10);
           return {
             recipeName: ratingStats.name,

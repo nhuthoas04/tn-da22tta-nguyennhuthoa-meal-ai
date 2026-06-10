@@ -7,7 +7,7 @@ import { Favorite } from './favorite.entity';
 import { MealPlanItem } from '../../meal-plan/entities/meal-plan-item.entity';
 import { User } from '../../auth/entities/user.entity';
 import { RecipeRating } from './recipe-rating.entity';
-import { RecipeLike } from './recipe-like.entity';
+import { RecipeView } from './recipe-view.entity';
 
 @Entity('recipes')
 export class Recipe {
@@ -96,14 +96,14 @@ export class Recipe {
     @OneToMany(() => Favorite, (fav) => fav.recipe)
     favorites: Favorite[];
 
-    @OneToMany(() => RecipeLike, (like) => like.recipe)
-    likes: RecipeLike[];
-
     @OneToMany(() => MealPlanItem, (mpi) => mpi.recipe)
     mealPlanItems: MealPlanItem[];
 
     @OneToMany(() => RecipeRating, (rating) => rating.recipe, { cascade: true })
     ratings: RecipeRating[];
+
+    @OneToMany(() => RecipeView, (view) => view.recipe)
+    viewsLog: RecipeView[];
 
     @ManyToOne(() => User, { nullable: true })
     @JoinColumn({ name: 'submittedBy' })

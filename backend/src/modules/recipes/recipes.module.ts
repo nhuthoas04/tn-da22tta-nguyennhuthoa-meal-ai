@@ -14,13 +14,13 @@ import { RecipeModerationAudit } from './entities/recipe-moderation-audit.entity
 import { RecipeRating } from './entities/recipe-rating.entity';
 import { AdminNotification } from './entities/admin-notification.entity';
 import { User } from '../auth/entities/user.entity';
-import { RecipeLike } from './entities/recipe-like.entity';
+import { RecipeView } from './entities/recipe-view.entity';
 import { NotificationModule } from '../notification/notification.module';
 
 @Module({
     imports: [
         TypeOrmModule.forFeature([
-            Recipe, Ingredient, RecipeIngredient, Favorite, RecipeModerationAudit, RecipeRating, AdminNotification, User, RecipeLike,
+            Recipe, Ingredient, RecipeIngredient, Favorite, RecipeModerationAudit, RecipeRating, AdminNotification, User, RecipeView,
         ]),
         NotificationModule,
     ],

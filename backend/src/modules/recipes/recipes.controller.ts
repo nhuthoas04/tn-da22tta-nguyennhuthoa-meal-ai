@@ -2,6 +2,7 @@ import {
     Controller, Get, Post, Put, Delete, Param, Query,
     UseGuards, Request, Body,
 } from '@nestjs/common';
+import { createHash } from 'crypto';
 import { AuthGuard } from '@nestjs/passport';
 import { RecipesService } from './recipes.service';
 import { RecipeModerationService } from './recipe-moderation.service';
@@ -22,6 +23,7 @@ export class RecipesController {
 
     @Get()
     findAll(
+        @Request() req,
         @Query('page') page?: number,
         @Query('limit') limit?: number,
         @Query('search') search?: string,
@@ -32,10 +34,11 @@ export class RecipesController {
         @Query('region') region?: string,
         @Query('sort') sort?: string,
     ) {
+        const userId = this.getUserIdFromRequest(req);
         return this.recipesService.findAll({
             page, limit, search, mealType,
             maxCookingTime, minCalories, maxCalories, region, sort,
-        });
+        }, userId);
     }
 
     @UseGuards(AuthGuard('jwt'))
@@ -191,31 +194,18 @@ export class RecipesController {
 
     @Get(':id')
     findOne(@Param('id') id: string, @Request() req) {
-        let userId: string | undefined;
-        try {
-            const authHeader = req.headers?.authorization;
-            if (authHeader && authHeader.startsWith('Bearer ')) {
-                const token = authHeader.split(' ')[1];
-                const payloadPart = token.split('.')[1];
-                if (payloadPart) {
-                    const decoded = JSON.parse(Buffer.from(payloadPart, 'base64').toString('utf-8'));
-                    userId = decoded.id || decoded.sub;
-                }
-            }
-        } catch {}
-        return this.recipesService.findOne(id, userId);
+        const userId = this.getUserIdFromRequest(req);
+        return this.recipesService.findOne(id, {
+            userId,
+            viewerKey: this.getViewerKey(req, userId),
+            userAgent: this.getUserAgent(req),
+        });
     }
 
     @UseGuards(AuthGuard('jwt'))
     @Post(':id/favorite')
     toggleFavorite(@Request() req, @Param('id') id: string) {
         return this.recipesService.toggleFavorite(req.user.id, id);
-    }
-
-    @UseGuards(AuthGuard('jwt'))
-    @Post(':id/like')
-    toggleLike(@Request() req, @Param('id') id: string) {
-        return this.recipesService.toggleLike(req.user.id, id);
     }
 
     // ==================== RATINGS & REVIEWS ====================
@@ -305,5 +295,49 @@ export class RecipesController {
             req.user.role,
             ratingId,
         );
+    }
+
+    private getUserIdFromRequest(req: any): string | undefined {
+        try {
+            const authHeader = req.headers?.authorization;
+            if (authHeader && authHeader.startsWith('Bearer ')) {
+                const token = authHeader.split(' ')[1];
+                const payloadPart = token.split('.')[1];
+                if (payloadPart) {
+                    const decoded = JSON.parse(Buffer.from(payloadPart, 'base64').toString('utf-8'));
+                    return decoded.id || decoded.sub;
+                }
+            }
+        } catch {}
+
+        return undefined;
+    }
+
+    private getViewerKey(req: any, userId?: string): string {
+        if (userId) return `user:${userId}`;
+
+        const ip = this.getClientIp(req);
+        const userAgent = this.getUserAgent(req) || 'unknown';
+        const hash = createHash('sha256')
+            .update(`${ip}|${userAgent}`)
+            .digest('hex');
+
+        return `anon:${hash}`;
+    }
+
+    private getClientIp(req: any): string {
+        const forwardedFor = req.headers?.['x-forwarded-for'];
+        if (Array.isArray(forwardedFor)) return forwardedFor[0] || 'unknown';
+        if (typeof forwardedFor === 'string') {
+            return forwardedFor.split(',')[0]?.trim() || 'unknown';
+        }
+
+        return req.ip || req.socket?.remoteAddress || 'unknown';
+    }
+
+    private getUserAgent(req: any): string | null {
+        const userAgent = req.headers?.['user-agent'];
+        if (Array.isArray(userAgent)) return userAgent.join(' ');
+        return userAgent || null;
     }
 }

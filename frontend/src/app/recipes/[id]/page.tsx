@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { recipesAPI, mealPlanAPI } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import toast from 'react-hot-toast';
-import { HiClock, HiFire, HiHeart, HiUsers, HiArrowLeft, HiCalendar, HiX, HiStar, HiThumbUp } from 'react-icons/hi';
+import { HiClock, HiFire, HiHeart, HiUsers, HiArrowLeft, HiCalendar, HiX, HiStar } from 'react-icons/hi';
 import Link from 'next/link';
 
 const MEAL_OPTIONS = [
@@ -47,6 +47,13 @@ const MEAL_OPTIONS = [
   },
 ];
 
+const formatCount = (value: unknown) => {
+  const count = Number(value) || 0;
+  if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(count >= 10_000_000 ? 0 : 1)}M`;
+  if (count >= 1_000) return `${(count / 1_000).toFixed(count >= 10_000 ? 0 : 1)}K`;
+  return String(count);
+};
+
 export default function RecipeDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -54,7 +61,6 @@ export default function RecipeDetailPage() {
   const [recipe, setRecipe] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isFav, setIsFav] = useState(false);
-  const [isLiked, setIsLiked] = useState(false);
   const [servings, setServings] = useState<number>(4);
 
   const [planSelectorOpen, setPlanSelectorOpen] = useState(false);
@@ -108,8 +114,7 @@ export default function RecipeDetailPage() {
     try {
       const res = await recipesAPI.getById(recipeId);
       setRecipe(res.data);
-      setIsFav(res.data.isFavorited);
-      setIsLiked(res.data.isLiked);
+      setIsFav(Boolean(res.data.isFavorite ?? res.data.isFavorited));
       const profileServings = (user as any)?.preferences?.servings;
       setServings(profileServings || res.data.servings || 4);
       
@@ -205,21 +210,14 @@ export default function RecipeDetailPage() {
     }
     try {
       const res = await recipesAPI.toggleFavorite(recipe.id);
-      setIsFav(res.data.isFavorited);
-      toast.success(res.data.message);
-    } catch {
-      toast.error('Có lỗi xảy ra');
-    }
-  };
-
-  const toggleLike = async () => {
-    if (!user) {
-      toast.error('Vui lòng đăng nhập để thích món ăn');
-      return;
-    }
-    try {
-      const res = await recipesAPI.toggleLike(recipe.id);
-      setIsLiked(res.data.isLiked);
+      const nextIsFavorite = Boolean(res.data.isFavorite ?? res.data.isFavorited);
+      setIsFav(nextIsFavorite);
+      setRecipe((prev: any) => prev ? {
+        ...prev,
+        isFavorite: nextIsFavorite,
+        isFavorited: nextIsFavorite,
+        favoriteCount: res.data.favoriteCount ?? prev.favoriteCount ?? 0,
+      } : prev);
       toast.success(res.data.message);
     } catch {
       toast.error('Có lỗi xảy ra');
@@ -369,24 +367,15 @@ export default function RecipeDetailPage() {
                 Thêm vào thực đơn
               </button>
               <button
-                onClick={toggleLike}
-                className={`p-3 rounded-brand-sm border transition-all cursor-pointer ${
-                  isLiked ? 'bg-emerald-50 border-brand-primary/30 text-brand-primary shadow-brand-sm' : 'bg-slate-50 border-brand-light-border text-slate-400 hover:text-brand-primary'
-                }`}
-                aria-label="Thích"
-                title="Thích công thức"
-              >
-                <HiThumbUp className="text-xl" />
-              </button>
-              <button
                 onClick={toggleFav}
-                className={`p-3 rounded-brand-sm border transition-all cursor-pointer ${
+                className={`inline-flex items-center gap-1.5 px-3 py-3 rounded-brand-sm border transition-all cursor-pointer ${
                   isFav ? 'bg-red-50 border-brand-danger/30 text-brand-danger shadow-brand-sm' : 'bg-slate-50 border-brand-light-border text-slate-400 hover:text-brand-danger'
                 }`}
                 aria-label="Yêu thích"
                 title="Lưu công thức"
               >
                 <HiHeart className="text-xl" />
+                <span className="text-sm font-bold">{formatCount(recipe.favoriteCount)}</span>
               </button>
             </div>
           </div>
