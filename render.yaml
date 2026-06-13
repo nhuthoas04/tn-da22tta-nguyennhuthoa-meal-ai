@@ -6,7 +6,7 @@ databases:
 
 services:
   - type: web
-    name: mealai-backend
+    name: mealai-backend-nhuthoa
     runtime: node
     plan: free
     rootDir: backend
@@ -72,4 +72,4 @@ services:
       - key: NODE_ENV
         value: production
       - key: NEXT_PUBLIC_API_URL
-        value: https://mealai-backend.onrender.com/api/v1
+        value: https://mealai-backend-nhuthoa.onrender.com/api/v1

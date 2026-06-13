@@ -53,7 +53,7 @@ Ghi chu: `DB_SYNC=true` giup TypeORM tao bang tu dong luc deploy demo. Sau khi d
 
 Frontend dung:
 
-- `NEXT_PUBLIC_API_URL=https://mealai-backend.onrender.com/api/v1`
+- `NEXT_PUBLIC_API_URL=https://mealai-backend-nhuthoa.onrender.com/api/v1`
 
 Neu doi ten service backend tren Render, phai cap nhat lai bien nay roi redeploy frontend.
 
@@ -73,7 +73,7 @@ Neu doi ten service backend tren Render, phai cap nhat lai bien nay roi redeploy
 
 Mo cac URL:
 
-- Backend API: `https://mealai-backend.onrender.com/api/v1/recipes`
+- Backend API: `https://mealai-backend-nhuthoa.onrender.com/api/v1/recipes`
 - Frontend: `https://mealai-frontend.onrender.com`
 
 Kiem tra trong app:
@@ -109,7 +109,7 @@ FRONTEND_URL=https://mealai-frontend.onrender.com
 Kiem tra frontend env:
 
 ```text
-NEXT_PUBLIC_API_URL=https://mealai-backend.onrender.com/api/v1
+NEXT_PUBLIC_API_URL=https://mealai-backend-nhuthoa.onrender.com/api/v1
 ```
 
 Sau khi sua env, can redeploy frontend.
