@@ -11,6 +11,8 @@ import { SeedModule } from './modules/seed/seed.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { ChatbotModule } from './modules/chatbot/chatbot.module';
 import { NotificationModule } from './modules/notification/notification.module';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
 
 @Module({
   imports: [
@@ -64,5 +66,7 @@ import { NotificationModule } from './modules/notification/notification.module';
     ChatbotModule,
     NotificationModule,
   ],
+  controllers: [AppController],
+  providers: [AppService],
 })
 export class AppModule {}
