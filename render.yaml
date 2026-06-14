@@ -29,7 +29,7 @@ services:
       - key: DB_SYNC
         value: true
       - key: FRONTEND_URL
-        value: https://mealai-frontend.onrender.com
+        value: https://meal-ai-six.vercel.app
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_REFRESH_SECRET

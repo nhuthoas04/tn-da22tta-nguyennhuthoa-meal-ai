@@ -42,7 +42,7 @@ Can tu dien them neu muon dung day du tinh nang:
 
 Backend da cau hinh trong `render.yaml`:
 
-- `FRONTEND_URL=https://mealai-frontend.onrender.com`
+- `FRONTEND_URL=https://meal-ai-six.vercel.app`
 - `DATABASE_URL` lay tu Render Postgres `connectionString`
 - `DB_SSL=true`
 - `DB_SYNC=true`
@@ -74,7 +74,7 @@ Neu doi ten service backend tren Render, phai cap nhat lai bien nay roi redeploy
 Mo cac URL:
 
 - Backend API: `https://mealai-backend-nhuthoa.onrender.com/api/v1/recipes`
-- Frontend: `https://mealai-frontend.onrender.com`
+- Frontend: `https://meal-ai-six.vercel.app`
 
 Kiem tra trong app:
 
@@ -101,7 +101,7 @@ De dung on dinh nen chon mot trong cac cach:
 Kiem tra backend env:
 
 ```text
-FRONTEND_URL=https://mealai-frontend.onrender.com
+FRONTEND_URL=https://meal-ai-six.vercel.app
 ```
 
 ### Frontend van goi localhost
