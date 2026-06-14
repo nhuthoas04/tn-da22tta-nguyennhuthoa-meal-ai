@@ -17,8 +17,13 @@ async function bootstrap() {
 
   // Enable CORS for frontend
   app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: [
+      'http://localhost:3000',
+      'https://meal-ai-app-three.vercel.app',
+    ],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization'],
   });
 
   // Global validation pipe — auto-validates DTOs
