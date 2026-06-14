@@ -2,8 +2,14 @@ import axios, { type AxiosResponse } from 'axios';
 import { normalizeWeekStart, notifyMealPlanChanged } from './mealPlanEvents';
 
 // Create axios instance configured for our NestJS backend
+let rawBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+rawBaseUrl = rawBaseUrl.replace(/\/+$/, '');
+if (rawBaseUrl && !rawBaseUrl.endsWith('/api/v1')) {
+    rawBaseUrl = `${rawBaseUrl}/api/v1`;
+}
+
 const api = axios.create({
-    baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1',
+    baseURL: rawBaseUrl,
     headers: { 'Content-Type': 'application/json' },
 });
 
