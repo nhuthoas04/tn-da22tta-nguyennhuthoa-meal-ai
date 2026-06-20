@@ -3,10 +3,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ChatbotController } from './chatbot.controller';
 import { ChatbotAIService } from './chatbot-ai.service';
 import { ChatbotActionHandler } from './chatbot-action.handler';
-import { TtsService } from './tts.service';
 import { ChatMessage } from './entities/chat-message.entity';
 import { UserActionLog } from './entities/user-action-log.entity';
-import { VoiceCommandLog } from './entities/voice-command-log.entity';
 import { User } from '../auth/entities/user.entity';
 import { RecipesModule } from '../recipes/recipes.module';
 import { InventoryModule } from '../inventory/inventory.module';
@@ -17,12 +15,7 @@ import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([
-      ChatMessage,
-      User,
-      UserActionLog,
-      VoiceCommandLog,
-    ]),
+    TypeOrmModule.forFeature([ChatMessage, User, UserActionLog]),
     RecipesModule,
     InventoryModule,
     MealPlanModule,
@@ -31,7 +24,7 @@ import { ConfigModule } from '@nestjs/config';
     ConfigModule,
   ],
   controllers: [ChatbotController],
-  providers: [ChatbotAIService, ChatbotActionHandler, TtsService],
-  exports: [ChatbotAIService, TtsService, TypeOrmModule],
+  providers: [ChatbotAIService, ChatbotActionHandler],
+  exports: [ChatbotAIService, TypeOrmModule],
 })
 export class ChatbotModule {}

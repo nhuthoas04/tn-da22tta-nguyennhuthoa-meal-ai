@@ -14,11 +14,19 @@ export default function InventoryPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [expandedAllocations, setExpandedAllocations] = useState<Record<string, boolean>>({});
 
   // Add form state
   const [newItem, setNewItem] = useState({
     ingredientId: '', ingredientName: '', quantity: '', unit: '', expirationDate: '',
   });
+
+  const toggleExpand = (id: string) => {
+    setExpandedAllocations((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
 
   useEffect(() => {
     if (user) loadInventory();
@@ -227,33 +235,75 @@ export default function InventoryPage() {
           <p className="text-slate-500 font-medium">Tủ lạnh trống. Thêm nguyên liệu để bắt đầu nấu ăn thôi nào!</p>
         </div>
       ) : (
-        <div className="card-dashboard p-0 divide-y divide-brand-light-border overflow-hidden">
+        <div className="card-dashboard p-0 divide-y divide-brand-light-border overflow-hidden bg-white">
           {inventory.map((item: any) => (
-            <div key={item.id} className="flex items-center justify-between px-5 py-4 hover:bg-slate-50/50 transition-all">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-brand-primary/10 rounded-brand-sm flex items-center justify-center text-lg select-none">
-                  🥬
+            <div key={item.id} className="transition-all divide-y divide-brand-light-border/40">
+              <div className="flex items-center justify-between px-5 py-4 hover:bg-slate-50/30 transition-all">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-brand-primary/10 rounded-brand-sm flex items-center justify-center text-lg select-none">
+                    🥬
+                  </div>
+                  <div>
+                    <p className="font-semibold text-slate-800 text-sm">{item.ingredient.name}</p>
+                    {item.allocatedQuantity > 0 ? (
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1 text-[11px] font-medium text-slate-500">
+                        <span>Tồn kho ban đầu: <strong className="text-slate-700">{item.quantity} {item.unit}</strong></span>
+                        <span>•</span>
+                        <span>Còn lại: <strong className="text-brand-success">{item.availableQuantity} {item.unit}</strong></span>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-400 font-medium mt-0.5">{item.quantity} {item.unit}</p>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <p className="font-semibold text-slate-800">{item.ingredient.name}</p>
-                  <p className="text-xs text-slate-400 font-medium">{item.quantity} {item.unit}</p>
+
+                <div className="flex items-center gap-3">
+                  {item.allocations && item.allocations.length > 0 && (
+                    <button
+                      onClick={() => toggleExpand(item.id)}
+                      className="px-2.5 py-1 rounded-brand-sm text-[11px] font-bold border border-brand-secondary/20 bg-brand-secondary/5 text-brand-secondary hover:bg-brand-secondary/15 transition-all cursor-pointer"
+                    >
+                      {expandedAllocations[item.id] ? 'Thu gọn' : 'Chi tiết dùng 🧊'}
+                    </button>
+                  )}
+                  {item.urgency && item.urgency !== 'none' && (
+                    <span className={`px-2.5 py-1 rounded-brand-sm text-[11px] font-semibold border flex items-center gap-1 ${getUrgencyStyle(item.urgency)}`}>
+                      <HiClock />
+                      {item.daysLeft} ngày
+                    </span>
+                  )}
+                  <button
+                    onClick={() => removeItem(item.id)}
+                    className="p-2 text-slate-400 hover:text-brand-danger hover:scale-[1.05] transition-all cursor-pointer"
+                  >
+                    <HiTrash className="text-base" />
+                  </button>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
-                {item.urgency && item.urgency !== 'none' && (
-                  <span className={`px-2.5 py-1 rounded-brand-sm text-xs font-semibold border flex items-center gap-1 ${getUrgencyStyle(item.urgency)}`}>
-                    <HiClock />
-                    {item.daysLeft} ngày
-                  </span>
-                )}
-                <button
-                  onClick={() => removeItem(item.id)}
-                  className="p-2 text-slate-400 hover:text-brand-danger hover:scale-[1.05] transition-all cursor-pointer"
-                >
-                  <HiTrash className="text-base" />
-                </button>
-              </div>
+              {item.allocations && item.allocations.length > 0 && expandedAllocations[item.id] && (
+                <div className="px-5 pb-4 pt-3 bg-slate-50/50 animate-fade-in space-y-2 text-xs">
+                  <div className="text-[11px] font-bold text-slate-700">
+                    Chi tiết phân bổ 🧊
+                  </div>
+                  <div className="space-y-1 bg-white p-3 rounded border border-brand-light-border shadow-brand-sm">
+                    <p className="text-slate-500">
+                      Tồn kho ban đầu: <strong className="text-slate-850 text-slate-800">{item.quantity} {item.unit}</strong>
+                    </p>
+                    <div className="text-slate-500 font-medium">Đã phân bổ cho thực đơn:</div>
+                    <ul className="list-disc pl-4 space-y-1 text-slate-600 font-medium">
+                      {item.allocations.map((alloc: any) => (
+                        <li key={alloc.id}>
+                          {alloc.quantity} {item.unit} → {alloc.destination}
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="text-slate-500 pt-1.5 border-t border-dashed border-slate-200 mt-1.5">
+                      Còn lại khả dụng: <strong className="text-brand-success">{item.availableQuantity} {item.unit}</strong>
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>

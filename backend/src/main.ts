@@ -17,10 +17,7 @@ async function bootstrap() {
 
   // Enable CORS for frontend
   app.enableCors({
-    origin: [
-      'http://localhost:3000',
-      'https://meal-ai-app-three.vercel.app',
-    ],
+    origin: ['http://localhost:3000', 'https://meal-ai-app-three.vercel.app'],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],

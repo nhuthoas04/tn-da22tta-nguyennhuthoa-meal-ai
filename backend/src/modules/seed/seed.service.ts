@@ -73,7 +73,6 @@ export class SeedService implements OnModuleInit {
         proteinPer100g: 27,
         carbsPer100g: 0,
         fatPer100g: 14,
-        averagePrice: 120000,
       },
       {
         name: 'Thịt bò',
@@ -83,7 +82,6 @@ export class SeedService implements OnModuleInit {
         proteinPer100g: 26,
         carbsPer100g: 0,
         fatPer100g: 15,
-        averagePrice: 280000,
       },
       {
         name: 'Thịt gà',
@@ -93,7 +91,6 @@ export class SeedService implements OnModuleInit {
         proteinPer100g: 27,
         carbsPer100g: 0,
         fatPer100g: 14,
-        averagePrice: 90000,
       },
       {
         name: 'Sườn heo',
@@ -103,7 +100,6 @@ export class SeedService implements OnModuleInit {
         proteinPer100g: 24,
         carbsPer100g: 0,
         fatPer100g: 20,
-        averagePrice: 150000,
       },
 
       // === Hải sản (Seafood) ===
@@ -115,7 +111,6 @@ export class SeedService implements OnModuleInit {
         proteinPer100g: 18,
         carbsPer100g: 0,
         fatPer100g: 2,
-        averagePrice: 140000,
       },
       {
         name: 'Tôm',
@@ -125,7 +120,6 @@ export class SeedService implements OnModuleInit {
         proteinPer100g: 20,
         carbsPer100g: 0,
         fatPer100g: 1,
-        averagePrice: 250000,
       },
       {
         name: 'Cá thu',
@@ -135,7 +129,6 @@ export class SeedService implements OnModuleInit {
         proteinPer100g: 19,
         carbsPer100g: 0,
         fatPer100g: 14,
-        averagePrice: 160000,
       },
 
       // === Rau củ (Vegetables) ===
@@ -147,7 +140,6 @@ export class SeedService implements OnModuleInit {
         proteinPer100g: 2.6,
         carbsPer100g: 3.1,
         fatPer100g: 0.2,
-        averagePrice: 15000,
       },
       {
         name: 'Cà chua',
@@ -157,7 +149,6 @@ export class SeedService implements OnModuleInit {
         proteinPer100g: 0.9,
         carbsPer100g: 3.9,
         fatPer100g: 0.2,
-        averagePrice: 25000,
       },
       {
         name: 'Hành tây',
@@ -167,7 +158,6 @@ export class SeedService implements OnModuleInit {
         proteinPer100g: 1.1,
         carbsPer100g: 9.3,
         fatPer100g: 0.1,
-        averagePrice: 20000,
       },
       {
         name: 'Bắp cải',
@@ -177,7 +167,6 @@ export class SeedService implements OnModuleInit {
         proteinPer100g: 1.3,
         carbsPer100g: 5.8,
         fatPer100g: 0.1,
-        averagePrice: 15000,
       },
       {
         name: 'Cà rốt',
@@ -187,7 +176,6 @@ export class SeedService implements OnModuleInit {
         proteinPer100g: 0.9,
         carbsPer100g: 9.6,
         fatPer100g: 0.2,
-        averagePrice: 20000,
       },
       {
         name: 'Giá đỗ',
@@ -197,7 +185,6 @@ export class SeedService implements OnModuleInit {
         proteinPer100g: 3.0,
         carbsPer100g: 5.9,
         fatPer100g: 0.2,
-        averagePrice: 10000,
       },
       {
         name: 'Rau cải',
@@ -207,7 +194,6 @@ export class SeedService implements OnModuleInit {
         proteinPer100g: 1.5,
         carbsPer100g: 2.2,
         fatPer100g: 0.2,
-        averagePrice: 15000,
       },
       {
         name: 'Khổ qua',
@@ -217,7 +203,6 @@ export class SeedService implements OnModuleInit {
         proteinPer100g: 1.0,
         carbsPer100g: 3.7,
         fatPer100g: 0.2,
-        averagePrice: 25000,
       },
       {
         name: 'Bí đao',
@@ -227,7 +212,6 @@ export class SeedService implements OnModuleInit {
         proteinPer100g: 0.4,
         carbsPer100g: 3.0,
         fatPer100g: 0.2,
-        averagePrice: 12000,
       },
       {
         name: 'Đậu que',
@@ -237,7 +221,6 @@ export class SeedService implements OnModuleInit {
         proteinPer100g: 1.8,
         carbsPer100g: 7.0,
         fatPer100g: 0.1,
-        averagePrice: 20000,
       },
 
       // === Gia vị (Spices) ===
@@ -249,7 +232,6 @@ export class SeedService implements OnModuleInit {
         proteinPer100g: 6.4,
         carbsPer100g: 33,
         fatPer100g: 0.5,
-        averagePrice: 40000,
       },
       {
         name: 'Nước mắm',
@@ -259,7 +241,6 @@ export class SeedService implements OnModuleInit {
         proteinPer100g: 5,
         carbsPer100g: 3,
         fatPer100g: 0,
-        averagePrice: 30000,
       },
       {
         name: 'Đường',
@@ -269,7 +250,6 @@ export class SeedService implements OnModuleInit {
         proteinPer100g: 0,
         carbsPer100g: 100,
         fatPer100g: 0,
-        averagePrice: 20000,
       },
       {
         name: 'Dầu ăn',
@@ -279,7 +259,6 @@ export class SeedService implements OnModuleInit {
         proteinPer100g: 0,
         carbsPer100g: 0,
         fatPer100g: 100,
-        averagePrice: 35000,
       },
       {
         name: 'Hành lá',
@@ -289,7 +268,6 @@ export class SeedService implements OnModuleInit {
         proteinPer100g: 1.8,
         carbsPer100g: 7.3,
         fatPer100g: 0.2,
-        averagePrice: 10000,
       },
       {
         name: 'Ớt',
@@ -299,7 +277,6 @@ export class SeedService implements OnModuleInit {
         proteinPer100g: 1.9,
         carbsPer100g: 8.8,
         fatPer100g: 0.4,
-        averagePrice: 30000,
       },
       {
         name: 'Me',
@@ -309,7 +286,6 @@ export class SeedService implements OnModuleInit {
         proteinPer100g: 2.8,
         carbsPer100g: 62.5,
         fatPer100g: 0.6,
-        averagePrice: 50000,
       },
       {
         name: 'Sả',
@@ -319,7 +295,6 @@ export class SeedService implements OnModuleInit {
         proteinPer100g: 1.8,
         carbsPer100g: 25.3,
         fatPer100g: 0.5,
-        averagePrice: 15000,
       },
 
       // === Khác (Other) ===
@@ -331,7 +306,6 @@ export class SeedService implements OnModuleInit {
         proteinPer100g: 2.7,
         carbsPer100g: 28,
         fatPer100g: 0.3,
-        averagePrice: 18000,
       },
       {
         name: 'Trứng gà',
@@ -341,7 +315,6 @@ export class SeedService implements OnModuleInit {
         proteinPer100g: 13,
         carbsPer100g: 1.1,
         fatPer100g: 11,
-        averagePrice: 4000,
       },
       {
         name: 'Bún',
@@ -351,7 +324,6 @@ export class SeedService implements OnModuleInit {
         proteinPer100g: 3.4,
         carbsPer100g: 25,
         fatPer100g: 0.1,
-        averagePrice: 12000,
       },
       {
         name: 'Đậu phụ',
@@ -361,7 +333,6 @@ export class SeedService implements OnModuleInit {
         proteinPer100g: 8,
         carbsPer100g: 1.9,
         fatPer100g: 4.8,
-        averagePrice: 8000,
       },
       {
         name: 'Phở',
@@ -371,7 +342,6 @@ export class SeedService implements OnModuleInit {
         proteinPer100g: 3.3,
         carbsPer100g: 24,
         fatPer100g: 0.2,
-        averagePrice: 15000,
       },
       {
         name: 'Bánh mì',
@@ -381,7 +351,6 @@ export class SeedService implements OnModuleInit {
         proteinPer100g: 9,
         carbsPer100g: 49,
         fatPer100g: 3.2,
-        averagePrice: 5000,
       },
       {
         name: 'Nước cốt dừa',
@@ -391,7 +360,6 @@ export class SeedService implements OnModuleInit {
         proteinPer100g: 2.3,
         carbsPer100g: 5.5,
         fatPer100g: 23.8,
-        averagePrice: 25000,
       },
     ];
 

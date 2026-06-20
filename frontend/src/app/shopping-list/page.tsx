@@ -4,13 +4,15 @@ import { useAuth } from '@/context/AuthContext';
 import api, { shoppingListAPI } from '@/lib/api';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
-import { HiPlus, HiCheck, HiTrash, HiShoppingCart, HiPrinter, HiClipboardCopy, HiOutlineDownload } from 'react-icons/hi';
+import { HiPlus, HiCheck, HiTrash, HiShoppingCart, HiPrinter, HiClipboardCopy, HiOutlineDownload, HiShare } from 'react-icons/hi';
+import MealAIShareSheetModal from './MealAIShareSheetModal';
 
 export default function ShoppingListPage() {
   const { user } = useAuth();
   const [lists, setLists] = useState<any[]>([]);
   const [selectedList, setSelectedList] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(() => {
     if (user) loadLists();
@@ -293,7 +295,6 @@ export default function ShoppingListPage() {
                 </div>
                 <div className="flex items-center justify-between mt-3 text-xs text-slate-400 font-medium">
                   <span>{list.purchasedItems}/{list.totalItems} mục</span>
-                  {list.estimatedTotal > 0 && <span className="font-bold text-slate-700">~{list.estimatedTotal.toLocaleString()}đ</span>}
                 </div>
                 {/* Progress bar */}
                 <div className="w-full bg-slate-100 rounded-full h-1.5 mt-2">
@@ -320,36 +321,15 @@ export default function ShoppingListPage() {
               <div className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <h3 className="font-bold text-slate-900 text-lg">{selectedList.name}</h3>
-                  {selectedList.estimatedTotal > 0 && (
-                    <p className="text-sm font-semibold text-brand-primary mt-1">
-                      Ước tính tổng cộng: ~{selectedList.estimatedTotal.toLocaleString()}đ
-                    </p>
-                  )}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <button
-                    onClick={handleExportPDF}
-                    className="btn-outline-sm gap-1.5"
-                    title="Xuất PDF danh sách mua sắm"
+                    onClick={() => setShareOpen(true)}
+                    className="btn-outline-sm gap-1.5 font-bold text-emerald-600 border-emerald-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/20"
+                    title="Chia sẻ danh sách mua sắm qua các ứng dụng"
                   >
-                    <HiOutlineDownload className="text-base animate-bounce" />
-                    <span>Xuất PDF</span>
-                  </button>
-                  <button
-                    onClick={printList}
-                    className="btn-outline-sm gap-1.5"
-                    title="In danh sách mua sắm"
-                  >
-                    <HiPrinter className="text-base" />
-                    <span>In ấn</span>
-                  </button>
-                  <button
-                    onClick={copyAsNote}
-                    className="btn-outline-sm gap-1.5"
-                    title="Sao chép dưới dạng ghi chú"
-                  >
-                    <HiClipboardCopy className="text-base" />
-                    <span>Copy</span>
+                    <HiShare className="text-base" />
+                    <span>Chia sẻ</span>
                   </button>
                   <button
                     onClick={() => deleteList(selectedList.id)}
@@ -361,50 +341,102 @@ export default function ShoppingListPage() {
                 </div>
               </div>
 
-              {/* Grouped Items */}
+              {/* Grouped Items (Section A: NGUYÊN LIỆU CẦN MUA) */}
               <div className="divide-y divide-brand-light-border">
-                {selectedList.groups?.map((group: any, gi: number) => (
-                  <div key={gi} className="p-5">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">{group.category}</h4>
-                    <div className="space-y-2">
-                      {group.items.map((item: any) => (
-                        <div
-                          key={item.id}
-                          className={`flex items-center justify-between py-2 px-3 rounded-brand-sm transition-all ${
-                            item.isPurchased ? 'bg-slate-50' : 'hover:bg-brand-primary/5'
-                          }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <button
-                              onClick={() => togglePurchased(item.id, item.isPurchased)}
-                              className={`w-6 h-6 rounded-brand-sm border flex items-center justify-center transition-all cursor-pointer hover:scale-105 active:scale-95 ${
-                                item.isPurchased
-                                  ? 'bg-gradient-to-r from-brand-primary to-brand-secondary border-transparent text-white shadow-brand-glow'
-                                  : 'border-slate-300 hover:border-brand-primary hover:bg-brand-primary/5'
-                              }`}
-                            >
-                              {item.isPurchased && <HiCheck className="text-sm" />}
-                            </button>
-                            <span className={`text-sm ${item.isPurchased ? 'line-through text-slate-400' : 'text-slate-700 font-medium'}`}>
-                              {item.ingredient.name}
-                            </span>
+                <div className="p-5 bg-emerald-50/30 border-b border-emerald-100">
+                  <h4 className="font-bold text-emerald-800 text-sm flex items-center gap-2">
+                    <span>🛒</span> NGUYÊN LIỆU CẦN MUA
+                  </h4>
+                </div>
+                
+                {(() => {
+                  const activeGroups = selectedList.groups?.map((group: any) => ({
+                    category: group.category,
+                    items: group.items.filter((item: any) => item.quantity > 0),
+                  })).filter((group: any) => group.items.length > 0) || [];
+
+                  if (activeGroups.length === 0) {
+                    return (
+                      <div className="p-8 text-center text-slate-500 text-sm font-medium">
+                        Không có nguyên liệu nào cần mua thêm! 🎉
+                      </div>
+                    );
+                  }
+
+                  return activeGroups.map((group: any, gi: number) => (
+                    <div key={gi} className="p-5">
+                      <h5 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">{group.category}</h5>
+                      <div className="space-y-2">
+                        {group.items.map((item: any) => (
+                          <div
+                            key={item.id}
+                            className={`flex items-center justify-between py-2 px-3 rounded-brand-sm transition-all ${
+                              item.isPurchased ? 'bg-slate-50' : 'hover:bg-brand-primary/5'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <button
+                                onClick={() => togglePurchased(item.id, item.isPurchased)}
+                                className={`w-6 h-6 rounded-brand-sm border flex items-center justify-center transition-all cursor-pointer hover:scale-105 active:scale-95 ${
+                                  item.isPurchased
+                                    ? 'bg-gradient-to-r from-brand-primary to-brand-secondary border-transparent text-white shadow-brand-glow'
+                                    : 'border-slate-300 hover:border-brand-primary hover:bg-brand-primary/5'
+                                }`}
+                              >
+                                {item.isPurchased && <HiCheck className="text-sm" />}
+                              </button>
+                              <span className={`text-sm ${item.isPurchased ? 'line-through text-slate-400' : 'text-slate-700 font-medium'}`}>
+                                {item.ingredient.name}
+                              </span>
+                            </div>
+                            <div className="text-right text-sm">
+                              <span className="font-bold text-slate-600">{item.quantity} {item.unit}</span>
+                            </div>
                           </div>
-                          <div className="text-right text-sm">
-                            <span className="font-bold text-slate-600">{item.quantity} {item.unit}</span>
-                            {item.estimatedPrice > 0 && (
-                              <p className="text-xs text-slate-400 mt-0.5">~{item.estimatedPrice.toLocaleString()}đ</p>
-                            )}
+                        ))}
+                      </div>
+                    </div>
+                  ));
+                })()}
+              </div>
+
+              {/* Section B: NGUYÊN LIỆU ĐÃ LẤY TỪ TỦ LẠNH */}
+              {selectedList.allocations && selectedList.allocations.length > 0 && (
+                <div className="divide-y divide-brand-light-border border-t border-brand-light-border">
+                  <div className="p-5 bg-blue-50/30 border-b border-blue-100">
+                    <h4 className="font-bold text-blue-800 text-sm flex items-center gap-2">
+                      <span>❄️</span> NGUYÊN LIỆU ĐÃ LẤY TỪ TỦ LẠNH
+                    </h4>
+                  </div>
+                  <div className="p-5 space-y-3">
+                    {selectedList.allocations.map((alloc: any) => (
+                      <div key={alloc.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between py-2.5 px-3 bg-slate-50/50 hover:bg-slate-50 border border-slate-100 rounded-brand-sm transition-all gap-1">
+                        <div>
+                          <span className="text-sm font-semibold text-slate-800">{alloc.ingredientName}</span>
+                          <div className="text-xs text-slate-500 mt-0.5">
+                            Dành cho: <span className="font-medium text-slate-600">{alloc.destination}</span>
                           </div>
                         </div>
-                      ))}
-                    </div>
+                        <div className="text-right shrink-0">
+                          <span className="px-2.5 py-1 rounded-full bg-blue-100/70 text-blue-800 text-xs font-bold">
+                            Đã lấy: {alloc.quantity} {alloc.unit}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </div>
+              )}
             </div>
           )}
         </div>
       </div>
+      <MealAIShareSheetModal
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        shoppingList={selectedList}
+        onExportPDF={handleExportPDF}
+      />
     </div>
   );
 }

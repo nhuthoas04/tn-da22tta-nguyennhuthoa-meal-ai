@@ -5,7 +5,6 @@ import { ConfigService } from '@nestjs/config';
 import { GoogleGenerativeAI, FunctionDeclaration } from '@google/generative-ai';
 import { ChatMessage } from './entities/chat-message.entity';
 import { UserActionLog } from './entities/user-action-log.entity';
-import { VoiceCommandLog } from './entities/voice-command-log.entity';
 import { ChatbotActionHandler } from './chatbot-action.handler';
 import { User } from '../auth/entities/user.entity';
 
@@ -24,8 +23,6 @@ export class ChatbotAIService implements OnModuleInit {
     private readonly userRepo: Repository<User>,
     @InjectRepository(UserActionLog)
     private readonly actionLogRepo: Repository<UserActionLog>,
-    @InjectRepository(VoiceCommandLog)
-    private readonly voiceLogRepo: Repository<VoiceCommandLog>,
   ) {}
 
   onModuleInit() {
@@ -1563,12 +1560,17 @@ QUY TẮC RẤT QUAN TRỌNG:
             `🛒 **Đã tự động lập danh sách mua sắm thành công!**\n` +
             `**Tên danh sách:** ${res.name}\n` +
             `**Số lượng mặt hàng cần mua:** ${res.totalItems} món\n` +
-            `**Tổng chi phí dự kiến:** ${res.estimatedTotal.toLocaleString('vi-VN')} đ\n\n` +
+            (res.estimatedTotal && res.estimatedTotal > 0
+              ? `**Tổng chi phí dự kiến:** ${res.estimatedTotal.toLocaleString('vi-VN')} đ\n\n`
+              : `\n`) +
             `**Chi tiết nguyên liệu cần mua:**\n` +
             res.toBuy
               .map(
                 (item: any) =>
-                  `- **${item.name}**: ${item.quantity} ${item.unit} (${item.category}) - Dự tính: ${item.estimatedPrice.toLocaleString('vi-VN')}đ`,
+                  `- **${item.name}**: ${item.quantity} ${item.unit} (${item.category})` +
+                  (item.estimatedPrice && item.estimatedPrice > 0
+                    ? ` - Dự tính: ${item.estimatedPrice.toLocaleString('vi-VN')}đ`
+                    : ''),
               )
               .join('\n') +
             `\n\n*Hệ thống đã tự động đối chiếu với tủ lạnh và lược bỏ ${res.alreadyHave.length} nguyên liệu bạn đã có sẵn!*`;
@@ -2147,90 +2149,5 @@ QUY TẮC RẤT QUAN TRỌNG:
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
-  }
-
-  async sendVoiceMessage(
-    userId: string,
-    content: string,
-    durationMs: number,
-  ): Promise<{ text: string; actionTaken?: any }> {
-    // 1. Process as regular chatbot message (using sendMessage)
-    const result = await this.sendMessage(userId, content);
-
-    // 2. Check if action succeeded
-    let isSuccess = true;
-    let intent: string | null = null;
-    if (result.actionTaken) {
-      intent = result.actionTaken.name;
-      const resVal = result.actionTaken.result;
-      if (
-        resVal &&
-        (resVal.error || resVal.skipped === true || resVal.success === false)
-      ) {
-        isSuccess = false;
-      }
-    }
-
-    // 3. Log the voice command to database
-    try {
-      const log = this.voiceLogRepo.create({
-        userId,
-        commandText: content,
-        responseText: result.text,
-        intent,
-        isSuccess,
-        durationMs,
-      });
-      await this.voiceLogRepo.save(log);
-    } catch (err: any) {
-      this.logger.error('Failed to log voice command: ' + err.message);
-    }
-
-    return result;
-  }
-
-  async getVoiceStats() {
-    // 1. Total voice commands
-    const totalCommands = await this.voiceLogRepo.count();
-
-    // 2. Most used intents (group by intent, count)
-    const intentStats = await this.voiceLogRepo
-      .createQueryBuilder('log')
-      .select('log.intent', 'intent')
-      .addSelect('COUNT(log.id)', 'count')
-      .where('log.intent IS NOT NULL')
-      .groupBy('log.intent')
-      .orderBy('count', 'DESC')
-      .limit(5)
-      .getRawMany();
-
-    // 3. Success rate
-    const successCount = await this.voiceLogRepo.count({
-      where: { isSuccess: true },
-    });
-    const successRate =
-      totalCommands > 0 ? (successCount / totalCommands) * 100 : 100;
-
-    // 4. Top users using voice
-    const topUsers = await this.voiceLogRepo
-      .createQueryBuilder('log')
-      .select('log.userId', 'userId')
-      .addSelect('COUNT(log.id)', 'count')
-      .addSelect('user.fullName', 'fullName')
-      .addSelect('user.email', 'email')
-      .innerJoin(User, 'user', 'user.id = log.userId')
-      .groupBy('log.userId')
-      .addGroupBy('user.fullName')
-      .addGroupBy('user.email')
-      .orderBy('count', 'DESC')
-      .limit(10)
-      .getRawMany();
-
-    return {
-      totalCommands,
-      intentStats,
-      successRate: Math.round(successRate * 100) / 100, // Round to 2 decimals
-      topUsers,
-    };
   }
 }

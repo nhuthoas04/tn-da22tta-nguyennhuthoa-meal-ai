@@ -25,6 +25,10 @@ export function getMaxRecommendedDishes(servingsInput: number): number {
   return Math.ceil(servings * 2.5);
 }
 
+export function getMaxDishesByServings(servings: number): number {
+  return getMaxRecommendedDishes(servings);
+}
+
 export function calculateMealPortionWarning(input: MealPortionWarningInput, isAiGenerated = false): MealPortionWarningResult {
   const servings = Math.max(1, Math.floor(Number(input.servings) || 1));
   const totalDishes = Math.max(0, Math.floor(Number(input.totalDishes) || 0));

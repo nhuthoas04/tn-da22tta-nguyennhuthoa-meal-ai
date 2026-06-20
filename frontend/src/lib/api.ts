@@ -234,11 +234,8 @@ export const shoppingListAPI = {
 // ==================== CHATBOT API ====================
 export const chatbotAPI = {
     sendMessage: (message: string) => api.post('/chatbot/message', { message }),
-    sendVoiceMessage: (message: string, durationMs: number) => api.post('/chatbot/voice', { message, durationMs }),
-    getVoiceStats: () => api.get('/chatbot/voice/stats'),
     getHistory: () => api.get('/chatbot/history'),
     clearHistory: () => api.delete('/chatbot/history'),
-    getTtsAudio: (text: string) => api.get('/chatbot/tts', { params: { text }, responseType: 'blob' }),
     logAction: (data: {
         actionType: 'accept' | 'reject' | 'view_detail';
         recipeId?: string;

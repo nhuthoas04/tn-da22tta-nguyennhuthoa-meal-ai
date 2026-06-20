@@ -1029,7 +1029,6 @@ export class RecipesService implements OnModuleInit {
           proteinPer100g: 0,
           carbsPer100g: 0,
           fatPer100g: 0,
-          averagePrice: 0,
         });
         await this.ingredientRepo.save(ingredient);
       }

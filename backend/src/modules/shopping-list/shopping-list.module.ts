@@ -9,6 +9,7 @@ import { RecipeIngredient } from '../recipes/entities/recipe-ingredient.entity';
 import { Inventory } from '../inventory/entities/inventory.entity';
 import { User } from '../auth/entities/user.entity';
 import { PdfModule } from '../pdf/pdf.module';
+import { InventoryAllocation } from '../inventory/entities/inventory-allocation.entity';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { PdfModule } from '../pdf/pdf.module';
       RecipeIngredient,
       Inventory,
       User,
+      InventoryAllocation,
     ]),
     PdfModule,
   ],

@@ -143,13 +143,13 @@ export class AuthService {
             budgetPerMeal: user.preferences.budgetPerMeal,
             servings: user.preferences.servings,
             healthConditions: user.preferences.healthConditions || '',
-            maxSugarPerMeal: user.preferences.maxSugarPerMeal
+            maxSugarPerMeal: (user.preferences.maxSugarPerMeal !== null && user.preferences.maxSugarPerMeal !== undefined)
               ? Number(user.preferences.maxSugarPerMeal)
               : null,
-            maxSodiumPerMeal: user.preferences.maxSodiumPerMeal
+            maxSodiumPerMeal: (user.preferences.maxSodiumPerMeal !== null && user.preferences.maxSodiumPerMeal !== undefined)
               ? Number(user.preferences.maxSodiumPerMeal)
               : null,
-            minProteinPerMeal: user.preferences.minProteinPerMeal
+            minProteinPerMeal: (user.preferences.minProteinPerMeal !== null && user.preferences.minProteinPerMeal !== undefined)
               ? Number(user.preferences.minProteinPerMeal)
               : null,
           }

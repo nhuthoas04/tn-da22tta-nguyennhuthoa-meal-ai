@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 import { HiChevronLeft, HiChevronRight, HiOutlineTrash, HiOutlineDownload, HiSparkles } from 'react-icons/hi';
 import { useAuth } from '@/context/AuthContext';
 import api, { mealPlanAPI, recipesAPI, shoppingListAPI, recommendationAPI } from '@/lib/api';
-import { calculateMealPortionWarning, getMaxRecommendedDishes, MealPortionWarningResult } from '@/lib/mealPortion';
+import { calculateMealPortionWarning, getMaxRecommendedDishes, getMaxDishesByServings, MealPortionWarningResult } from '@/lib/mealPortion';
 
 const DAYS = ['Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy', 'Chủ Nhật'];
 const MEALS = [
@@ -39,6 +39,20 @@ export default function MealPlannerPage() {
   const [optimizingPortions, setOptimizingPortions] = useState(false);
   const [prioritizeNew, setPrioritizeNew] = useState(true);
   const [noRepeatIn7Days, setNoRepeatIn7Days] = useState(false);
+  const [optimizationResult, setOptimizationResult] = useState<any | null>(null);
+  const [optimizationError, setOptimizationError] = useState<string | null>(null);
+  const [manualAddWarningModal, setManualAddWarningModal] = useState<{
+    servings: number;
+    currentCount: number;
+    maxCount: number;
+    recipeName?: string;
+    recipeId?: string;
+    recipeIds?: string[];
+    day: number;
+    dateStr: string;
+    mealType: string;
+    itemId?: string | null;
+  } | null>(null);
 
   useEffect(() => {
     if (user) loadPlan();
@@ -121,18 +135,22 @@ export default function MealPlannerPage() {
   const handleAISuggestButtonClick = async (dayOfWeek: number) => {
     const isToday = getSlotDateInput(weekStart, dayOfWeek - 1) === getTodayInputValue();
     const dayLabelText = isToday ? 'hôm nay' : `ngày ${DAYS[dayOfWeek - 1]}`;
+    const dateStr = getSlotDateInput(weekStart, dayOfWeek - 1);
 
-    if (isDayFullyPopulated(dayOfWeek)) {
-      // Case 2: All slots are full
+    const dayItems = plan?.items?.filter((item: any) => item.mealDate === dateStr && item.recipe) || [];
+    const currentDishCount = dayItems.length;
+    const maxDishCount = getMaxRecommendedDishes(getUserServings());
+    const missingCount = maxDishCount - currentDishCount;
+
+    if (missingCount <= 0) {
+      // Case 2: Already reached or exceeded limit, ask to overwrite
       const confirmed = confirm(
-        `Thực đơn ${dayLabelText} đã đầy đủ.\n\nBạn có muốn AI tạo lại toàn bộ thực đơn không?`
+        `Thực đơn ${dayLabelText} đã đầy đủ (${currentDishCount}/${maxDishCount} món).\n\nBạn có muốn AI tạo lại toàn bộ thực đơn không?`
       );
       if (!confirmed) return;
-      
-      // Case 3: Confirmed, run with overwrite = true
       await handleAISuggest(dayOfWeek, true);
     } else {
-      // Case 1: Still has empty slots, run with overwrite = false
+      // Case 1: Still has empty slots or missing dishes, fill them (overwrite = false)
       await handleAISuggest(dayOfWeek, false);
     }
   };
@@ -144,6 +162,9 @@ export default function MealPlannerPage() {
     setAiSuggestingDay(dayOfWeek);
     setAiSuggestionError(null);
     try {
+      const oldDayItems = plan?.items?.filter((item: any) => item.mealDate === dateStr && item.recipe) || [];
+      const beforeCount = oldDayItems.length;
+
       const res = await mealPlanAPI.generateForDays({
         weekStart,
         days: [dayOfWeek],
@@ -163,6 +184,9 @@ export default function MealPlannerPage() {
         const dayItems = res.data.items.filter((item: any) => item.mealDate === dateStr && item.recipe);
         console.log('[MealAI][meal-planner][AI suggest] rendered day items:', dayItems);
 
+        const afterCount = dayItems.length;
+        const addedCount = afterCount - beforeCount;
+
         if (dayItems.length === 0) {
           const emptyMessage = 'Không tìm thấy món ăn phù hợp với nhu cầu hiện tại.';
           setAiSuggestionError(emptyMessage);
@@ -171,15 +195,20 @@ export default function MealPlannerPage() {
         }
 
         checkMealPortionWarning(dayOfWeek, dateStr, dayItems);
+
+        if (overwrite) {
+          toast.success(`AI đã tạo lại thực đơn cho ngày ${DAYS[dayOfWeek - 1]}! 🤖`);
+        } else {
+          if (addedCount > 0) {
+            toast.success(`Đã bổ sung ${addedCount} món còn thiếu cho thực đơn.`);
+          } else {
+            toast.success(`Thực đơn đã được cập nhật.`);
+          }
+        }
       } else {
         await loadPlan();
+        toast.success(`Thực đơn đã được cập nhật.`);
       }
-
-      toast.success(
-        overwrite
-          ? `AI đã tạo lại thực đơn cho ngày ${DAYS[dayOfWeek - 1]}! 🤖`
-          : `Đã bổ sung món ăn cho các bữa còn thiếu.`
-      );
     } catch (err: any) {
       const errMsg = err.response?.data?.message || 'Có lỗi khi gọi AI gợi ý';
       console.error('[MealAI][meal-planner][AI suggest] error:', err);
@@ -195,6 +224,7 @@ export default function MealPlannerPage() {
 
     setOptimizingPortions(true);
     setAiSuggestionError(null);
+    setOptimizationError(null);
     try {
       const res = await mealPlanAPI.generateForDays({
         weekStart,
@@ -207,18 +237,47 @@ export default function MealPlannerPage() {
         noRepeatIn7Days,
       });
 
-      if (res.data?.items) {
-        applyPlanUpdateKeepingScroll(res.data);
+      const details = res.data?.optimizationDetails;
+      if (details) {
+        if (details.optimized === true) {
+          applyPlanUpdateKeepingScroll(res.data);
+          setOptimizationResult({
+            beforeCount: details.beforeCount,
+            afterCount: details.afterCount,
+            removedItems: details.removedItems,
+          });
+          toast.success(`Đã tối ưu thực đơn: ${details.beforeCount} món → ${details.afterCount} món`);
+          setPortionWarning(null);
+        } else {
+          let errorMsg = 'Không thể tối ưu thực đơn lúc này.';
+          if (details.errorReason?.startsWith('locked_exceeds_limit:')) {
+            const parts = details.errorReason.split(':');
+            const lockedCount = parts[1];
+            const limitCount = parts[2];
+            errorMsg = `Không thể tối ưu vì có ${lockedCount} món đã bị khóa, vượt ngưỡng ${limitCount} món.`;
+          } else if (details.errorReason === 'all_locked') {
+            errorMsg = 'Món đã bị khóa.';
+          } else if (details.errorReason === 'nutrition_limit') {
+            errorMsg = 'Loại bỏ thêm sẽ gây thiếu dinh dưỡng.';
+          } else if (details.errorReason === 'not_enough_recipes') {
+            errorMsg = 'Không đủ công thức thay thế.';
+          }
+          setOptimizationError(errorMsg);
+          toast.error(errorMsg);
+        }
       } else {
-        await loadPlan();
+        if (res.data?.items) {
+          applyPlanUpdateKeepingScroll(res.data);
+        } else {
+          await loadPlan();
+        }
+        toast.success('Đã tự động tối ưu thực đơn theo số người ăn.');
+        setPortionWarning(null);
       }
-
-      toast.success('Đã tự động tối ưu thực đơn theo số người ăn.');
-      setPortionWarning(null);
     } catch (err: any) {
       const errMsg = err.response?.data?.message || 'Không thể tối ưu thực đơn lúc này';
       console.error('[MealAI][meal-planner][portion optimize] error:', err);
-      setAiSuggestionError(errMsg);
+      setOptimizationError(errMsg);
       toast.error(errMsg);
     } finally {
       setOptimizingPortions(false);
@@ -286,21 +345,15 @@ export default function MealPlannerPage() {
     } catch { } finally { setSearchingRecipes(false); }
   };
 
-  const handleSelectRecipe = async (recipeId: string) => {
-    if (!selectedSlot) return;
-    if (isPastSlotDate(weekStart, selectedSlot.day - 1)) { toast.error('Không thể thêm hoặc đổi món cho ngày đã qua.'); return; }
-
-    const dateStr = getSlotDateInput(weekStart, selectedSlot.day - 1);
-    const selectedRecipe = searchResults.find((recipe: any) => recipe.id === recipeId);
-
+  const executeSelectRecipe = async (recipeId: string, dateStr: string, day: number, mealType: string, itemId: string | null, selectedRecipe: any) => {
     try {
       let nextPlan = null;
-      if (plan && selectedSlot.itemId) {
-        const res = await mealPlanAPI.swapRecipe(plan.id, selectedSlot.itemId, recipeId);
+      if (plan && itemId) {
+        const res = await mealPlanAPI.swapRecipe(plan.id, itemId, recipeId);
         const updatedPlan = {
           ...plan,
           items: plan.items.map((item: any) =>
-            item.id === selectedSlot.itemId
+            item.id === itemId
               ? {
                   ...item,
                   ...res.data,
@@ -321,12 +374,12 @@ export default function MealPlannerPage() {
         applyPlanUpdateKeepingScroll(updatedPlan);
         toast.success('Đã cập nhật món ăn thành công!');
       } else {
-        const res = await mealPlanAPI.setMealSlot({ weekStart, dayOfWeek: selectedSlot.day, mealDate: dateStr, mealType: selectedSlot.mealType, recipeId });
+        const res = await mealPlanAPI.setMealSlot({ weekStart, dayOfWeek: day, mealDate: dateStr, mealType: mealType, recipeId });
         nextPlan = res.data;
         applyPlanUpdateKeepingScroll(res.data);
         toast.success('Đã chọn món ăn thành công!');
       }
-      setHighlightedSlot({ weekStart, day: selectedSlot.day, mealType: selectedSlot.mealType });
+      setHighlightedSlot({ weekStart, day, mealType });
       handleCloseSelector();
 
       if (nextPlan) {
@@ -343,23 +396,54 @@ export default function MealPlannerPage() {
     } catch { toast.error('Không thể cập nhật món ăn'); }
   };
 
-  const handleAddSelectedRecipes = async () => {
-    if (!selectedSlot || selectedSlot.itemId || selectedRecipeIds.length === 0) return;
-    if (isPastSlotDate(weekStart, selectedSlot.day - 1)) { toast.error('Không thể thêm món cho ngày đã qua.'); return; }
+  const handleSelectRecipe = async (recipeId: string) => {
+    if (!selectedSlot) return;
+    if (isPastSlotDate(weekStart, selectedSlot.day - 1)) { toast.error('Không thể thêm hoặc đổi món cho ngày đã qua.'); return; }
 
     const dateStr = getSlotDateInput(weekStart, selectedSlot.day - 1);
+    const selectedRecipe = searchResults.find((recipe: any) => recipe.id === recipeId);
+
+    // If it's a swap (itemId is present), we don't increase count, so bypass warning modal
+    if (selectedSlot.itemId) {
+      executeSelectRecipe(recipeId, dateStr, selectedSlot.day, selectedSlot.mealType, selectedSlot.itemId, selectedRecipe);
+      return;
+    }
+
+    const dayItems = plan?.items?.filter((item: any) => item.mealDate === dateStr && item.recipe) || [];
+    const currentCount = dayItems.length;
+    const maxCount = getMaxRecommendedDishes(getUserServings());
+
+    if (currentCount >= maxCount) {
+      setManualAddWarningModal({
+        servings: getUserServings(),
+        currentCount,
+        maxCount,
+        recipeName: selectedRecipe ? selectedRecipe.name : 'Món ăn',
+        recipeId,
+        day: selectedSlot.day,
+        dateStr,
+        mealType: selectedSlot.mealType,
+        itemId: selectedSlot.itemId,
+      });
+      return;
+    }
+
+    executeSelectRecipe(recipeId, dateStr, selectedSlot.day, selectedSlot.mealType, selectedSlot.itemId, selectedRecipe);
+  };
+
+  const executeAddSelectedRecipes = async (recipeIds: string[], dateStr: string, day: number, mealType: string) => {
     try {
       const res = await mealPlanAPI.setMealSlot({
         weekStart,
-        dayOfWeek: selectedSlot.day,
+        dayOfWeek: day,
         mealDate: dateStr,
-        mealType: selectedSlot.mealType,
-        recipeIds: selectedRecipeIds,
+        mealType: mealType,
+        recipeIds: recipeIds,
       });
 
       applyPlanUpdateKeepingScroll(res.data);
-      setHighlightedSlot({ weekStart, day: selectedSlot.day, mealType: selectedSlot.mealType });
-      toast.success(`Đã thêm ${selectedRecipeIds.length} món vào ${getMealLabel(selectedSlot.mealType)}!`);
+      setHighlightedSlot({ weekStart, day, mealType });
+      toast.success(`Đã thêm ${recipeIds.length} món vào ${getMealLabel(mealType)}!`);
       handleCloseSelector();
 
       const dayItems = res.data.items.filter((item: any) => item.mealDate === dateStr && item.recipe);
@@ -371,9 +455,37 @@ export default function MealPlannerPage() {
       if (warning.shouldWarn) {
         toast.error(warning.message || 'Bạn đã vượt số lượng món khuyến nghị cho số người ăn hiện tại.', { duration: 5000 });
       }
-    } catch {
-      toast.error('Không thể thêm các món đã chọn');
+    } catch { toast.error('Không thể cập nhật món ăn'); }
+  };
+
+  const handleAddSelectedRecipes = async () => {
+    if (!selectedSlot || selectedSlot.itemId || selectedRecipeIds.length === 0) return;
+    if (isPastSlotDate(weekStart, selectedSlot.day - 1)) { toast.error('Không thể thêm món cho ngày đã qua.'); return; }
+
+    const dateStr = getSlotDateInput(weekStart, selectedSlot.day - 1);
+    const dayItems = plan?.items?.filter((item: any) => item.mealDate === dateStr && item.recipe) || [];
+    const currentCount = dayItems.length;
+    const maxCount = getMaxRecommendedDishes(getUserServings());
+
+    if (currentCount >= maxCount) {
+      const selectedNames = selectedRecipeIds.map(id => {
+        const r = searchResults.find((x: any) => x.id === id);
+        return r ? r.name : 'Món ăn';
+      });
+      setManualAddWarningModal({
+        servings: getUserServings(),
+        currentCount,
+        maxCount,
+        recipeIds: [...selectedRecipeIds],
+        recipeName: selectedNames.join(', '),
+        day: selectedSlot.day,
+        dateStr,
+        mealType: selectedSlot.mealType,
+      });
+      return;
     }
+
+    executeAddSelectedRecipes(selectedRecipeIds, dateStr, selectedSlot.day, selectedSlot.mealType);
   };
 
   const handleDeleteItem = async (item: any) => {
@@ -809,11 +921,18 @@ export default function MealPlannerPage() {
                     Hệ thống sẽ ưu tiên giữ món chính theo từng bữa, món đã khóa và món có giá trị dinh dưỡng tốt hơn khi tối ưu.
                   </p>
                 </div>
+
+                {optimizationError && (
+                  <div className="rounded-brand-md border border-red-200 bg-red-50 p-4">
+                    <p className="text-xs font-bold uppercase tracking-wider text-red-700">Lỗi tối ưu thực đơn</p>
+                    <p className="mt-1 text-sm font-semibold text-red-800">{optimizationError}</p>
+                  </div>
+                )}
               </div>
 
               <div className="flex flex-col gap-2 border-t border-brand-light-border bg-slate-50 px-5 py-4 sm:flex-row sm:justify-end flex-shrink-0">
                 <button
-                  onClick={() => setPortionWarning(null)}
+                  onClick={() => { setPortionWarning(null); setOptimizationError(null); }}
                   disabled={optimizingPortions}
                   className="btn-ghost-sm justify-center"
                 >
@@ -825,6 +944,126 @@ export default function MealPlannerPage() {
                   className="btn-primary-sm justify-center"
                 >
                   {optimizingPortions ? 'Đang tối ưu...' : 'Tự động tối ưu thực đơn'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Optimization Success Modal */}
+        {optimizationResult && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-lg overflow-hidden rounded-brand-lg border border-emerald-200 bg-white shadow-brand-lg max-h-[90vh] flex flex-col animate-scale-up">
+              <div className="border-b border-emerald-100 bg-emerald-50 px-5 py-4 flex-shrink-0">
+                <h3 className="text-base font-extrabold text-emerald-800 flex items-center gap-1.5">
+                  Tối ưu thực đơn thành công! 🎉
+                </h3>
+              </div>
+
+              <div className="space-y-4 px-5 py-4 overflow-y-auto flex-1 bg-white">
+                <div className="flex justify-between items-center bg-slate-50 p-4 rounded-brand-md border border-brand-light-border">
+                  <div className="text-center flex-1">
+                    <p className="text-[10px] font-bold uppercase text-slate-400">Trước tối ưu</p>
+                    <p className="mt-1 text-lg font-black text-slate-700">{optimizationResult.beforeCount} món</p>
+                  </div>
+                  <div className="text-slate-400 font-bold px-2">➔</div>
+                  <div className="text-center flex-1">
+                    <p className="text-[10px] font-bold uppercase text-emerald-500">Sau tối ưu</p>
+                    <p className="mt-1 text-lg font-black text-emerald-600">{optimizationResult.afterCount} món</p>
+                  </div>
+                </div>
+
+                {optimizationResult.removedItems && optimizationResult.removedItems.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Món đã loại bỏ:</h4>
+                    <ul className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                      {optimizationResult.removedItems.map((item: any, idx: number) => (
+                        <li key={idx} className="text-xs bg-red-50 text-red-700 border border-red-100 px-3 py-2.5 rounded-brand-sm flex justify-between items-center">
+                          <span className="font-semibold">{item.recipeName}</span>
+                          <span className="text-[9px] bg-red-100 px-2 py-0.5 rounded-full font-bold uppercase">
+                            {item.mealType === 'breakfast' ? 'Sáng' : item.mealType === 'lunch' ? 'Trưa' : 'Tối'}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              <div className="border-t border-brand-light-border bg-slate-50 px-5 py-4 flex justify-end">
+                <button
+                  onClick={() => setOptimizationResult(null)}
+                  className="btn-primary-sm justify-center w-full sm:w-auto"
+                >
+                  Đồng ý
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Manual Add Limit Warning Modal */}
+        {manualAddWarningModal && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-md overflow-hidden rounded-brand-lg border border-brand-warning/30 bg-white shadow-brand-lg animate-scale-up">
+              <div className="border-b border-brand-warning/20 bg-brand-warning/5 px-5 py-4">
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-1.5">
+                  ⚠️ Cảnh báo giới hạn thực đơn
+                </h3>
+              </div>
+
+              <div className="p-5 space-y-4 text-sm text-slate-600">
+                <p className="font-semibold text-slate-800 text-base">
+                  Thực đơn hiện tại đã đạt giới hạn khẩu phần cho {manualAddWarningModal.servings} người ăn.
+                </p>
+
+                <div className="bg-slate-50 border border-brand-light-border rounded-brand-md p-4 space-y-2.5">
+                  <div className="flex justify-between text-xs font-medium">
+                    <span className="text-slate-400">Số người ăn:</span>
+                    <strong className="text-slate-800">{manualAddWarningModal.servings} người</strong>
+                  </div>
+                  <div className="flex justify-between text-xs font-medium">
+                    <span className="text-slate-400">Số món hiện tại trong ngày:</span>
+                    <strong className="text-slate-800">{manualAddWarningModal.currentCount} món</strong>
+                  </div>
+                  <div className="flex justify-between text-xs font-medium">
+                    <span className="text-slate-400">Ngưỡng tối đa khuyến nghị:</span>
+                    <strong className="text-slate-800">{manualAddWarningModal.maxCount} món</strong>
+                  </div>
+                  <div className="flex justify-between text-xs font-medium items-start">
+                    <span className="text-slate-400">Món đang muốn thêm:</span>
+                    <strong className="text-slate-800 text-right max-w-[200px] truncate block" title={manualAddWarningModal.recipeName}>
+                      {manualAddWarningModal.recipeName}
+                    </strong>
+                  </div>
+                </div>
+
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Việc thêm quá nhiều món ăn trong một ngày có thể gây thừa thãi dinh dưỡng hoặc tốn kém chi phí chuẩn bị. Bạn có chắc chắn muốn tiếp tục thêm?
+                </p>
+              </div>
+
+              <div className="border-t border-brand-light-border bg-slate-50 px-5 py-4 flex items-center justify-end gap-2">
+                <button
+                  onClick={() => setManualAddWarningModal(null)}
+                  className="px-4 py-2 text-slate-600 font-bold rounded-brand-sm hover:bg-slate-100 hover:text-slate-900 transition-all duration-200 cursor-pointer flex items-center justify-center gap-1.5 text-xs border-none outline-none sm:py-1.5 w-full sm:w-auto"
+                >
+                  Hủy
+                </button>
+                <button
+                  onClick={async () => {
+                    const info = manualAddWarningModal;
+                    setManualAddWarningModal(null);
+                    if (info.recipeIds) {
+                      await executeAddSelectedRecipes(info.recipeIds, info.dateStr, info.day, info.mealType);
+                    } else if (info.recipeId) {
+                      const selectedRecipe = searchResults.find((recipe: any) => recipe.id === info.recipeId);
+                      await executeSelectRecipe(info.recipeId, info.dateStr, info.day, info.mealType, info.itemId || null, selectedRecipe);
+                    }
+                  }}
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-brand-sm text-xs font-bold transition-all shadow-brand-sm w-full sm:w-auto flex items-center justify-center gap-1.5 sm:py-1.5 border-none outline-none"
+                >
+                  Vẫn thêm món
                 </button>
               </div>
             </div>

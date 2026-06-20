@@ -111,7 +111,7 @@ export class Recipe {
   @OneToMany(() => RecipeView, (view) => view.recipe)
   viewsLog: RecipeView[];
 
-  @ManyToOne(() => User, { nullable: true })
+  @ManyToOne(() => User, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'submittedBy' })
   submitter: User;
 }

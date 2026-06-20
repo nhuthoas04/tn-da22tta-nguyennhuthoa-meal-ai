@@ -1,8 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Like, LessThanOrEqual } from 'typeorm';
+import { Repository, Like, LessThanOrEqual, In } from 'typeorm';
 import { Inventory } from './entities/inventory.entity';
 import { Ingredient } from '../recipes/entities/ingredient.entity';
+import { InventoryAllocation } from './entities/inventory-allocation.entity';
 
 @Injectable()
 export class InventoryService {
@@ -10,6 +11,8 @@ export class InventoryService {
     @InjectRepository(Inventory) private inventoryRepo: Repository<Inventory>,
     @InjectRepository(Ingredient)
     private ingredientRepo: Repository<Ingredient>,
+    @InjectRepository(InventoryAllocation)
+    private allocationRepo: Repository<InventoryAllocation>,
   ) {}
 
   /**
@@ -36,11 +39,92 @@ export class InventoryService {
 
     const items = await qb.getMany();
 
-    // Add urgency classification to each item
+    // Fetch all active allocations for this user's inventory items
+    const inventoryIds = items.map((i) => i.id);
+    let activeAllocations: InventoryAllocation[] = [];
+    if (inventoryIds.length > 0) {
+      const allAllocations = await this.allocationRepo.find({
+        where: {
+          inventoryItemId: In(inventoryIds),
+        },
+        relations: ['mealPlanItem', 'mealPlanItem.recipe', 'shoppingList'],
+      });
+
+      // Filter active ones:
+      // If it has a mealPlanItem, it is active if the meal is not consumed yet.
+      // If it only has a shoppingList, it is active if the shopping list is not completed.
+      activeAllocations = allAllocations.filter((alloc) => {
+        if (alloc.mealPlanItem) {
+          return !alloc.mealPlanItem.isConsumed;
+        }
+        if (alloc.shoppingList) {
+          return alloc.shoppingList.status !== 'completed';
+        }
+        return true;
+      });
+    }
+
+    // Add urgency classification & allocations to each item
     const data = items.map((item) => {
       const daysLeft = item.expirationDate
         ? this.getDaysLeft(item.expirationDate)
         : null;
+
+      // Filter allocations for this specific inventory item
+      const itemAllocations = activeAllocations.filter(
+        (alloc) => alloc.inventoryItemId === item.id,
+      );
+
+      const allocatedQuantity = itemAllocations.reduce(
+        (sum, alloc) => sum + Number(alloc.quantityAllocated),
+        0,
+      );
+
+      const availableQuantity = Math.max(
+        0,
+        Number(item.quantity) - allocatedQuantity,
+      );
+
+      // Map allocations detail for frontend
+      const mappedAllocations = itemAllocations.map((alloc) => {
+        let destination = '';
+        if (alloc.mealPlanItem && alloc.mealPlanItem.recipe) {
+          const mealTypeVn = {
+            breakfast: 'Sáng',
+            lunch: 'Trưa',
+            dinner: 'Tối',
+          };
+          const dayLabels = {
+            0: 'Chủ Nhật',
+            1: 'Thứ Hai',
+            2: 'Thứ Ba',
+            3: 'Thứ Tư',
+            4: 'Thứ Năm',
+            5: 'Thứ Sáu',
+            6: 'Thứ Bảy',
+          };
+          // Format date
+          const dateObj = new Date(alloc.mealPlanItem.mealDate);
+          const dayStr =
+            dayLabels[dateObj.getDay()] || `Thứ ${dateObj.getDay()}`;
+          const typeStr =
+            mealTypeVn[alloc.mealPlanItem.mealType] ||
+            alloc.mealPlanItem.mealType;
+          destination = `${alloc.mealPlanItem.recipe.name} (${typeStr} ${dayStr})`;
+        } else if (alloc.shoppingList) {
+          destination = `Danh sách mua sắm: ${alloc.shoppingList.name}`;
+        } else {
+          destination = 'Yêu cầu khác';
+        }
+
+        return {
+          id: alloc.id,
+          quantity: Number(alloc.quantityAllocated),
+          destination,
+          date: alloc.allocationDate,
+        };
+      });
+
       return {
         id: item.id,
         ingredient: {
@@ -48,7 +132,10 @@ export class InventoryService {
           name: item.ingredient.name,
           category: item.ingredient.category,
         },
-        quantity: item.quantity,
+        quantity: Number(item.quantity),
+        allocatedQuantity,
+        availableQuantity,
+        allocations: mappedAllocations,
         unit: item.unit,
         expirationDate: item.expirationDate,
         daysLeft,

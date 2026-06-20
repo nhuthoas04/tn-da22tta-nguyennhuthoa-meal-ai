@@ -100,10 +100,6 @@ export default function ChatWidget() {
     }
   }, [isOpen]);
 
-  // Dispatch toggle event for VoiceAssistant synchronization
-  useEffect(() => {
-    window.dispatchEvent(new CustomEvent('chat-widget-toggle', { detail: { isOpen } }));
-  }, [isOpen]);
 
   // Scroll to bottom on new messages
   useEffect(() => {

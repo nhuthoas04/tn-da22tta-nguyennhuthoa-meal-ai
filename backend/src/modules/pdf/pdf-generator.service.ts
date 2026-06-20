@@ -181,39 +181,47 @@ export class PdfGeneratorService {
       doc.moveDown(1.5);
 
       // Info Block
-      doc.fillColor('#f3f4f6').rect(40, doc.y, 515, 50).fill();
+      doc.fillColor('#f3f4f6').rect(40, doc.y, 515, 35).fill();
       doc.fillColor('#1f2937');
       const startY = doc.y + 10;
       doc
-        .fontSize(12)
+        .fontSize(11)
         .text(
-          `Trạng thái: ${listData.status === 'completed' ? 'Đã hoàn thành' : 'Đang chuẩn bị'}`,
+          `Trạng thái: ${listData.status === 'completed' ? 'Đã hoàn thành' : 'Đang chuẩn bị'} | Ngày in: ${new Date().toLocaleDateString('vi-VN')}`,
           55,
           startY,
         );
+
+      doc.y = startY + 25;
+      doc.moveDown(1.5);
+
+      // Section A: NGUYÊN LIỆU CẦN MUA
       doc
-        .fontSize(12)
-        .text(
-          `Ước tính tổng chi phí: ${new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(listData.estimatedTotal || 0)}`,
-          260,
-          startY,
-        );
+        .fillColor('#10b981')
+        .fontSize(14)
+        .text('A. NGUYÊN LIỆU CẦN MUA', { underline: true });
+      doc.moveDown(0.5);
 
-      doc.y = startY + 45;
-      doc.moveDown(1.2);
+      // Filter groups to only include items with quantity > 0
+      const activeGroups = (listData.groups || []).map((group: any) => {
+        return {
+          category: group.category,
+          items: group.items.filter((item: any) => item.quantity > 0),
+        };
+      }).filter((group: any) => group.items.length > 0);
 
-      // Ingredients grouped by category
-      if (!listData.groups || listData.groups.length === 0) {
+      if (activeGroups.length === 0) {
         doc
           .fillColor('#9ca3af')
           .fontSize(11)
-          .text('Danh sách mua sắm trống.', { align: 'center' });
+          .text('   (Không có nguyên liệu cần mua)', { oblique: true });
+        doc.moveDown(1);
       } else {
-        for (const group of listData.groups) {
+        for (const group of activeGroups) {
           doc
             .fillColor('#059669')
-            .fontSize(13)
-            .text(group.category, { underline: true });
+            .fontSize(12)
+            .text(`📂 ${group.category.toUpperCase()}`);
           doc.moveDown(0.3);
 
           for (const item of group.items) {
@@ -221,16 +229,43 @@ export class PdfGeneratorService {
             const name = item.ingredient.name;
             const qty = item.quantity;
             const unit = item.unit;
-            const price = item.estimatedPrice
-              ? ` - ${new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(item.estimatedPrice)}`
-              : '';
 
             doc
               .fillColor(item.isPurchased ? '#9ca3af' : '#1f2937')
               .fontSize(11);
-            doc.text(`   ${purchasedCheck}   ${name}: ${qty} ${unit}${price}`);
+            doc.text(`   ${purchasedCheck}   ${name}: ${qty} ${unit}`);
           }
           doc.moveDown(0.8);
+
+          // Check page boundary
+          if (doc.y > 720) {
+            doc.addPage();
+          }
+        }
+      }
+
+      doc.moveDown(1);
+
+      // Section B: NGUYÊN LIỆU ĐÃ LẤY TỪ TỦ LẠNH
+      doc
+        .fillColor('#2563eb')
+        .fontSize(14)
+        .text('B. NGUYÊN LIỆU ĐÃ LẤY TỪ TỦ LẠNH', { underline: true });
+      doc.moveDown(0.5);
+
+      if (!listData.allocations || listData.allocations.length === 0) {
+        doc
+          .fillColor('#9ca3af')
+          .fontSize(11)
+          .text('   (Không có nguyên liệu lấy từ tủ lạnh)');
+        doc.moveDown(1);
+      } else {
+        for (const alloc of listData.allocations) {
+          doc
+            .fillColor('#1f2937')
+            .fontSize(11);
+          doc.text(`   ✓   ${alloc.ingredientName}: ${alloc.quantity} ${alloc.unit}  -  Dành cho: ${alloc.destination}`);
+          doc.moveDown(0.2);
 
           // Check page boundary
           if (doc.y > 720) {

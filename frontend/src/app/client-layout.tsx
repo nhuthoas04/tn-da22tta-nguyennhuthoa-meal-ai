@@ -4,7 +4,6 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { Toaster } from 'react-hot-toast';
 import ChatWidget from '@/components/ChatWidget';
-import VoiceAssistantButton from '@/components/VoiceAssistantButton';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
@@ -57,9 +56,10 @@ function AppContent({ children }: { children: React.ReactNode }) {
         <AuthGuard>{children}</AuthGuard>
       </main>
       <Footer />
-      {user && <ChatWidget />}
-      {user && <VoiceAssistantButton />}
-      <Toaster position="top-right" />
+      <div suppressHydrationWarning>
+        {user && <ChatWidget />}
+        <Toaster position="top-right" />
+      </div>
     </div>
   );
 }

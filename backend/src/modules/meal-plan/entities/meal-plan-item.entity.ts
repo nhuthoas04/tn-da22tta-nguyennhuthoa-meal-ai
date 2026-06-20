@@ -4,6 +4,7 @@ import {
   Column,
   ManyToOne,
   JoinColumn,
+  CreateDateColumn,
 } from 'typeorm';
 import { MealPlan } from './meal-plan.entity';
 import { Recipe } from '../../recipes/entities/recipe.entity';
@@ -36,6 +37,9 @@ export class MealPlanItem {
 
   @Column({ type: 'varchar', length: 200, nullable: true })
   notes: string;
+
+  @CreateDateColumn()
+  createdAt: Date;
 
   // --- Relations ---
   @ManyToOne(() => MealPlan, (mp) => mp.items, { onDelete: 'CASCADE' })

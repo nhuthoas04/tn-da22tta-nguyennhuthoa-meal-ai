@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
@@ -16,11 +17,13 @@ import { ShoppingList } from '../shopping-list/entities/shopping-list.entity';
 import {
   calculateMealPortionWarning,
   getMaxRecommendedDishes,
+  getMaxDishesByServings,
 } from './meal-portion.util';
 import { selectRecipesAvoidingRepeats } from './meal-repeat.util';
 
 @Injectable()
 export class MealPlanService {
+  private readonly logger = new Logger(MealPlanService.name);
   // Day labels in Vietnamese
   private readonly DAY_LABELS = [
     '',
@@ -186,6 +189,15 @@ export class MealPlanService {
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekEnd.getDate() + 6);
     const weekStartValue = this.formatDateInput(weekStart);
+
+    const totalRecipesCount = await this.recipeRepo.count({
+      where: { isActive: true, status: 'approved' },
+    });
+    let databaseWarning: string | undefined = undefined;
+    if (totalRecipesCount < 15) {
+      databaseWarning =
+        'Kho công thức hiện tại quá ít để tạo thực đơn đa dạng hoàn toàn.';
+    }
 
     // Delete existing plan items for this week (if any) and reuse the plan record to avoid foreign key violations with shopping lists
     const existing = await this.planRepo.findOne({
@@ -424,6 +436,9 @@ export class MealPlanService {
           neededCount,
           selectionContext,
           fallbackState,
+          dayItemsList,
+          dateStr,
+          mealType,
         );
 
         for (const recipe of selectedRecipes) {
@@ -520,6 +535,9 @@ export class MealPlanService {
             1,
             selectionContext,
             fallbackState,
+            dayItemsList,
+            dateStr,
+            mealType,
           );
 
           if (selectedRecipes.length === 0) break; // no more recipes to recommend
@@ -586,9 +604,11 @@ export class MealPlanService {
     return this.findByWeek(
       userId,
       weekStartValue,
-      fallbackState.hasUsedDuplicates
-        ? 'Không đủ món để tránh lặp hoàn toàn. Một số món được tái sử dụng.'
-        : undefined,
+      databaseWarning
+        ? databaseWarning
+        : fallbackState.hasUsedDuplicates
+          ? 'Không đủ món để tránh lặp hoàn toàn. Một số món được tái sử dụng.'
+          : undefined,
     );
   }
 
@@ -791,6 +811,15 @@ export class MealPlanService {
     // Find weekStart from the first date
     const weekStart = this.getMonday(parsedDates[0]);
 
+    const totalRecipesCount = await this.recipeRepo.count({
+      where: { isActive: true, status: 'approved' },
+    });
+    let databaseWarning: string | undefined = undefined;
+    if (totalRecipesCount < 15) {
+      databaseWarning =
+        'Kho công thức hiện tại quá ít để tạo thực đơn đa dạng hoàn toàn.';
+    }
+
     // 1. Get or create the meal plan for this week
     let plan = await this.planRepo.findOne({
       where: { userId, weekStart },
@@ -810,6 +839,33 @@ export class MealPlanService {
         totalCalories: 0,
       });
       await this.planRepo.save(plan);
+    }
+    if (dto.optimizePortions === true) {
+      const user = await this.userRepo.findOne({
+        where: { id: userId },
+        relations: ['preferences'],
+      });
+      const servings = user?.preferences?.servings || 4;
+      const dailyCalorieTarget = user?.dailyCalorieTarget || 2000;
+
+      const optResult = await this.optimizeMealPlanItemsForPortions(
+        plan.id,
+        parsedDates,
+        servings,
+        dailyCalorieTarget,
+      );
+
+      await this.recalculateTotalCalories(plan.id);
+
+      const planData = await this.findByWeek(
+        userId,
+        this.formatDateInput(weekStart),
+      );
+
+      return {
+        ...planData,
+        optimizationDetails: optResult,
+      };
     } else if (dto.overwrite === true) {
       // Delete existing non-locked items for the specified dates and mealType (if provided) so we can regenerate them
       const deleteCriteria: any = {
@@ -832,7 +888,7 @@ export class MealPlanService {
     const recentSuggestedRecipes =
       user?.preferences?.recentSuggestedRecipes || [];
     const avoidRepeatMeals =
-      dto.noRepeatIn7Days === true || dto.avoidRepeatMeals === true;
+      dto.noRepeatIn7Days !== false && dto.avoidRepeatMeals !== false;
 
     // 2. Track used recipe IDs in this plan to keep it diverse
     const existingItems = await this.itemRepo.find({
@@ -885,34 +941,19 @@ export class MealPlanService {
         relations: ['recipe'],
       });
 
-      for (const mealType of this.MEAL_TYPES) {
-        const slotExistingItems = dateExistingItems.filter(
-          (item) => item.mealType === mealType,
-        );
-        const recipesAlreadyInSlot = slotExistingItems.filter(
-          (item) => item.recipeId !== null,
-        );
-
-        // If this mealType is not in the list of meal types to generate, or we shouldn't overwrite, keep existing slot items
-        if (
-          !mealTypesToGenerate.includes(mealType) ||
-          (dto.overwrite !== true && recipesAlreadyInSlot.length > 0)
-        ) {
-          for (const item of slotExistingItems) {
-            dayItemsList.push(item);
-            if (item.recipe) {
-              usedRecipeIds.add(item.recipeId);
-              addRecipeToDayContext(item.recipe);
-            }
+      if (dto.overwrite === true) {
+        // Keep only locked items
+        const lockedItems = dateExistingItems.filter((item) => item.isLocked);
+        for (const item of lockedItems) {
+          dayItemsList.push(item);
+          if (item.recipe) {
+            usedRecipeIds.add(item.recipeId);
+            addRecipeToDayContext(item.recipe);
           }
-          continue;
         }
-
-        // If overwriting, keep only locked items
-        const slotLockedItems = slotExistingItems.filter(
-          (item) => item.isLocked,
-        );
-        for (const item of slotLockedItems) {
+      } else {
+        // Keep all existing items initially
+        for (const item of dateExistingItems) {
           dayItemsList.push(item);
           if (item.recipe) {
             usedRecipeIds.add(item.recipeId);
@@ -920,78 +961,214 @@ export class MealPlanService {
           }
         }
 
-        const targetCount = this.getTargetDishesCount(servings, mealType);
-        const currentCount = dayItemsList.filter(
-          (item) => item.mealType === mealType,
-        ).length;
-        if (currentCount >= targetCount) {
-          continue;
+        // --- DUPLICATE DETECTION AND REPLACEMENT ---
+        const recipeOccurrences = new Map<string, number>();
+        for (const item of dayItemsList) {
+          if (item.recipeId) {
+            recipeOccurrences.set(
+              item.recipeId,
+              (recipeOccurrences.get(item.recipeId) || 0) + 1,
+            );
+          }
         }
 
-        const remainingDailyCapacity =
-          getMaxRecommendedDishes(servings) - dayItemsList.length;
-        if (remainingDailyCapacity <= 0) {
-          continue;
-        }
+        for (const [recipeId, count] of recipeOccurrences.entries()) {
+          if (count > 1) {
+            const itemsForRecipe = dayItemsList.filter(
+              (item) => item.recipeId === recipeId,
+            );
+            // Sort so locked ones come first
+            itemsForRecipe.sort((a, b) => (a.isLocked ? -1 : 1));
+            // Keep the first one, try to replace the others that are not locked
+            for (let j = 1; j < itemsForRecipe.length; j++) {
+              const itemToReplace = itemsForRecipe[j];
+              if (!itemToReplace.isLocked && itemToReplace.recipe) {
+                const recs =
+                  await this.recommendationService.getRecommendations(
+                    userId,
+                    itemToReplace.mealType,
+                    avoidRepeatMeals ? 100 : 30,
+                    dto.useAntiWaste !== false,
+                    {
+                      prioritizeNew: dto.prioritizeNew,
+                      noRepeatIn7Days: avoidRepeatMeals,
+                      currentDayRecipeIds: Array.from(currentDayRecipeIds),
+                      currentDayRecipeNames: Array.from(currentDayRecipeNames),
+                      currentDayTags,
+                      recentSuggestedNames: recentSuggestedRecipes,
+                      weeklyUsedRecipeIds: Array.from(usedRecipeIds),
+                    },
+                  );
 
-        const neededCount = Math.min(
-          targetCount - currentCount,
-          remainingDailyCapacity,
-        );
+                const selectionContext = {
+                  currentDayRecipeIds,
+                  currentDayRecipeNames,
+                  weeklyUsedRecipeIds: usedRecipeIds,
+                  recentSuggestedRecipes,
+                  prioritizeNew: dto.prioritizeNew,
+                  noRepeatIn7Days: avoidRepeatMeals,
+                };
 
-        // Use AI to get recommendations for this slot
-        const recs = await this.recommendationService.getRecommendations(
-          userId,
-          mealType,
-          avoidRepeatMeals ? 100 : 30,
-          dto.useAntiWaste !== false,
-          {
-            prioritizeNew: dto.prioritizeNew,
-            noRepeatIn7Days: avoidRepeatMeals,
-            currentDayRecipeIds: Array.from(currentDayRecipeIds),
-            currentDayRecipeNames: Array.from(currentDayRecipeNames),
-            currentDayTags,
-            recentSuggestedNames: recentSuggestedRecipes,
-            weeklyUsedRecipeIds: Array.from(usedRecipeIds),
-          },
-        );
-        this.logRepeatDebug(
-          usedRecipeIds,
-          recs.recommendations,
-          avoidRepeatMeals,
-        );
+                const selectedRecipes = this.selectRecipesForSlotWithFallback(
+                  recs.recommendations,
+                  1,
+                  selectionContext,
+                  fallbackState,
+                  dayItemsList,
+                  dateStr,
+                  itemToReplace.mealType,
+                );
 
-        const selectionContext = {
-          currentDayRecipeIds,
-          currentDayRecipeNames,
-          weeklyUsedRecipeIds: usedRecipeIds,
-          recentSuggestedRecipes,
-          prioritizeNew: dto.prioritizeNew,
-          noRepeatIn7Days: avoidRepeatMeals,
-        };
+                if (selectedRecipes.length > 0) {
+                  const newRecipe = selectedRecipes[0];
 
-        const selectedRecipes = this.selectRecipesForSlotWithFallback(
-          recs.recommendations,
-          neededCount,
-          selectionContext,
-          fallbackState,
-        );
+                  // Update item
+                  itemToReplace.recipeId = newRecipe.id;
+                  itemToReplace.recipe = newRecipe;
+                  itemToReplace.calories = newRecipe.calories;
 
-        for (const recipe of selectedRecipes) {
-          const item = this.itemRepo.create({
-            mealPlanId: plan.id,
-            recipeId: recipe.id,
-            mealDate: date,
-            mealType,
-            calories: recipe.calories,
-            isLocked: false,
-          });
-          dayItemsList.push(item);
-          usedRecipeIds.add(recipe.id);
-          addRecipeToDayContext(recipe);
-          newlySuggested.push(recipe.name);
+                  // Update contexts
+                  usedRecipeIds.add(newRecipe.id);
+                  addRecipeToDayContext(newRecipe);
+                  newlySuggested.push(newRecipe.name);
+                }
+              }
+            }
+          }
         }
       }
+
+      // Re-initialize day context after potential replacements
+      currentDayRecipeIds.clear();
+      currentDayRecipeNames.clear();
+      currentDayTags.length = 0;
+      for (const item of dayItemsList) {
+        if (item.recipe) {
+          addRecipeToDayContext(item.recipe);
+        }
+      }
+
+      // --- ADD MISSING DISHES ---
+      const currentDishCount = dayItemsList.filter(
+        (item) => item.recipeId,
+      ).length;
+      const maxDishCount = getMaxDishesByServings(servings);
+      const missingCount = maxDishCount - currentDishCount;
+
+      const addedCounts = { breakfast: 0, lunch: 0, dinner: 0 };
+      const selectedRecipesLog: any[] = [];
+
+      if (missingCount > 0) {
+        for (let i = 0; i < missingCount; i++) {
+          let bestMealType = null;
+          let maxDiff = -Infinity;
+
+          const checkOrder = ['dinner', 'lunch', 'breakfast'];
+          for (const mt of checkOrder) {
+            const target = this.getTargetDishesCount(servings, mt);
+            const current = dayItemsList.filter(
+              (item) => item.mealType === mt,
+            ).length;
+            const added = addedCounts[mt];
+            const diff = target - (current + added);
+            if (diff > maxDiff) {
+              maxDiff = diff;
+              bestMealType = mt;
+            }
+          }
+          if (bestMealType) {
+            addedCounts[bestMealType]++;
+          }
+        }
+
+        // Generate the balancing dishes
+        for (const mealType of this.MEAL_TYPES) {
+          const neededCount = addedCounts[mealType];
+          if (neededCount <= 0) continue;
+
+          const recs = await this.recommendationService.getRecommendations(
+            userId,
+            mealType,
+            avoidRepeatMeals ? 100 : 30,
+            dto.useAntiWaste !== false,
+            {
+              prioritizeNew: dto.prioritizeNew,
+              noRepeatIn7Days: avoidRepeatMeals,
+              currentDayRecipeIds: Array.from(currentDayRecipeIds),
+              currentDayRecipeNames: Array.from(currentDayRecipeNames),
+              currentDayTags,
+              recentSuggestedNames: recentSuggestedRecipes,
+              weeklyUsedRecipeIds: Array.from(usedRecipeIds),
+            },
+          );
+
+          const selectionContext = {
+            currentDayRecipeIds,
+            currentDayRecipeNames,
+            weeklyUsedRecipeIds: usedRecipeIds,
+            recentSuggestedRecipes,
+            prioritizeNew: dto.prioritizeNew,
+            noRepeatIn7Days: avoidRepeatMeals,
+          };
+
+          const selectedRecipes = this.selectRecipesForSlotWithFallback(
+            recs.recommendations,
+            neededCount,
+            selectionContext,
+            fallbackState,
+            dayItemsList,
+            dateStr,
+            mealType,
+          );
+
+          for (const recipe of selectedRecipes) {
+            const item = this.itemRepo.create({
+              mealPlanId: plan.id,
+              recipeId: recipe.id,
+              mealDate: date,
+              mealType,
+              calories: recipe.calories,
+              isLocked: false,
+            });
+            dayItemsList.push(item);
+            usedRecipeIds.add(recipe.id);
+            addRecipeToDayContext(recipe);
+            newlySuggested.push(recipe.name);
+            selectedRecipesLog.push({
+              id: recipe.id,
+              name: recipe.name,
+              mealType,
+            });
+          }
+        }
+      }
+
+      // --- LOG DEBUG INFORMATION ---
+      const finalRecipeOccurrences = new Map<string, number>();
+      for (const item of dayItemsList) {
+        if (item.recipeId && item.recipe) {
+          finalRecipeOccurrences.set(
+            item.recipe.name,
+            (finalRecipeOccurrences.get(item.recipe.name) || 0) + 1,
+          );
+        }
+      }
+      const finalDuplicated: string[] = [];
+      for (const [name, count] of finalRecipeOccurrences.entries()) {
+        if (count > 1) {
+          finalDuplicated.push(name);
+        }
+      }
+
+      console.log('[AI Suggest Debug Log]', {
+        servings,
+        maxDishCount,
+        currentDishCount,
+        missingCount,
+        usedRecipeIds: Array.from(usedRecipeIds),
+        selectedRecipes: selectedRecipesLog,
+        duplicatedRecipes: finalDuplicated,
+      });
 
       // Evaluate calories for this day
       let dayCalories = dayItemsList.reduce(
@@ -1067,6 +1244,9 @@ export class MealPlanService {
             1,
             selectionContext,
             fallbackState,
+            dayItemsList,
+            dateStr,
+            mealType,
           );
 
           if (selectedRecipes.length === 0) break;
@@ -1117,23 +1297,17 @@ export class MealPlanService {
       await this.userRepo.manager.save(user.preferences);
     }
 
-    if (dto.optimizePortions === true) {
-      await this.optimizeMealPlanItemsForPortions(
-        plan.id,
-        parsedDates,
-        servings,
-      );
-    }
-
     // 4. Recalculate daily average calories and total calories
     await this.recalculateTotalCalories(plan.id);
 
     return this.findByWeek(
       userId,
       this.formatDateInput(weekStart),
-      fallbackState.hasUsedDuplicates
-        ? 'Không đủ món để tránh lặp hoàn toàn. Một số món được tái sử dụng.'
-        : undefined,
+      databaseWarning
+        ? databaseWarning
+        : fallbackState.hasUsedDuplicates
+          ? 'Không đủ món để tránh lặp hoàn toàn. Một số món được tái sử dụng.'
+          : undefined,
     );
   }
 
@@ -1444,29 +1618,70 @@ export class MealPlanService {
     );
   }
 
-  private scoreMealPlanItemForKeeping(item: MealPlanItem): number {
+  private scoreMealPlanItemForKeeping(
+    item: MealPlanItem,
+    dayItems: MealPlanItem[],
+  ): number {
     const recipe = item.recipe;
-    const protein = Number(recipe?.protein) || 0;
-    const fiber = Number(recipe?.fiber) || 0;
-    const calories = Number(recipe?.calories || item.calories) || 0;
-    const caloriesScore = calories >= 250 && calories <= 800 ? 10 : 0;
+    if (!recipe) return 0;
 
-    return protein * 2 + fiber + caloriesScore;
+    let score = 0;
+
+    // 1. Món chính vs Món phụ
+    const tags = recipe.tags || [];
+    const isMain = !tags.includes('canh') && !tags.includes('rau');
+    if (isMain) {
+      score += 50;
+    }
+    if (item.notes === 'Món phụ') {
+      score -= 20;
+    }
+
+    // 2. Món có calories/protein tốt hơn
+    const protein = Number(recipe.protein) || 0;
+    const calories = Number(recipe.calories || item.calories) || 0;
+    score += protein * 2;
+    if (calories >= 250 && calories <= 800) {
+      score += 15;
+    }
+
+    // 3. Món ít bị trùng vs Món bị lặp
+    const recipeOccurrences = dayItems.filter(
+      (i) => i.recipeId === recipe.id,
+    ).length;
+    if (recipeOccurrences > 1) {
+      score -= 100; // Deduct heavily for duplicate recipes
+    }
+
+    // 4. Món phù hợp bữa ăn hơn
+    if (recipe.mealType && recipe.mealType.includes(item.mealType)) {
+      score += 30;
+    }
+
+    return score;
   }
 
   private pickBestMealItems(
     items: MealPlanItem[],
     limit: number,
     keepIds: Set<string>,
+    dayItems: MealPlanItem[],
   ) {
     return items
       .filter((item) => !keepIds.has(item.id))
       .sort((a, b) => {
         if (a.isLocked !== b.isLocked) return a.isLocked ? -1 : 1;
-        return (
-          this.scoreMealPlanItemForKeeping(b) -
-          this.scoreMealPlanItemForKeeping(a)
-        );
+
+        const scoreA = this.scoreMealPlanItemForKeeping(a, dayItems);
+        const scoreB = this.scoreMealPlanItemForKeeping(b, dayItems);
+        if (scoreA !== scoreB) {
+          return scoreB - scoreA;
+        }
+
+        // Keep older item first (Món thêm sau cùng bị loại)
+        const timeA = new Date(a.createdAt || 0).getTime();
+        const timeB = new Date(b.createdAt || 0).getTime();
+        return timeA - timeB;
       })
       .slice(0, Math.max(0, limit));
   }
@@ -1475,22 +1690,57 @@ export class MealPlanService {
     planId: string,
     dates: Date[],
     servings: number,
-  ) {
+    dailyCalorieTarget?: number,
+  ): Promise<{
+    optimized: boolean;
+    beforeCount: number;
+    afterCount: number;
+    removedItems: { recipeName: string; mealType: string; dayOfWeek: number }[];
+    errorReason: string | null;
+  }> {
     const dateStrings = Array.from(
       new Set(dates.map((date) => this.formatDateInput(date))),
     );
-    if (dateStrings.length === 0) return;
+    if (dateStrings.length === 0) {
+      return {
+        optimized: false,
+        beforeCount: 0,
+        afterCount: 0,
+        removedItems: [],
+        errorReason: null,
+      };
+    }
 
     const allItems = await this.itemRepo.find({
       where: {
         mealPlanId: planId,
-        mealDate: In(dateStrings.map((date) => this.parseDateInput(date))),
+        mealDate: In(dateStrings),
       },
       relations: ['recipe'],
     });
 
-    const targetDishesPerDay = this.getTargetDishesPerDay(servings);
+    const recipeCount = await this.recipeRepo.count();
+    if (recipeCount === 0) {
+      return {
+        optimized: false,
+        beforeCount: allItems.length,
+        afterCount: allItems.length,
+        removedItems: [],
+        errorReason: 'not_enough_recipes',
+      };
+    }
+
+    const targetDishesPerDay = getMaxRecommendedDishes(servings);
     const idsToRemove: string[] = [];
+    const removedItemsDetails: {
+      recipeName: string;
+      mealType: string;
+      dayOfWeek: number;
+    }[] = [];
+    let beforeCount = allItems.filter((item) => item.recipeId).length;
+    let afterCount = beforeCount;
+    let errorReason: string | null = null;
+    let optimized = false;
 
     for (const dateStr of dateStrings) {
       const dayItems = allItems.filter(
@@ -1498,17 +1748,23 @@ export class MealPlanService {
           this.formatDateInput(new Date(item.mealDate)) === dateStr &&
           item.recipeId,
       );
-      const warning = calculateMealPortionWarning({
-        servings,
-        totalDishes: dayItems.length,
-      });
 
-      if (!warning.shouldWarn || dayItems.length <= targetDishesPerDay) {
+      beforeCount = dayItems.length;
+
+      if (dayItems.length <= targetDishesPerDay) {
+        afterCount = dayItems.length;
         continue;
       }
 
-      const keepIds = new Set<string>();
+      // Check if locked items exceed the threshold
       const lockedItems = dayItems.filter((item) => item.isLocked);
+      if (lockedItems.length > targetDishesPerDay) {
+        errorReason = `locked_exceeds_limit:${lockedItems.length}:${targetDishesPerDay}`;
+        afterCount = dayItems.length;
+        break;
+      }
+
+      const keepIds = new Set<string>();
       lockedItems.forEach((item) => keepIds.add(item.id));
 
       for (const mealType of this.MEAL_TYPES) {
@@ -1517,8 +1773,8 @@ export class MealPlanService {
         const lockedInMeal = mealItems.filter((item) => item.isLocked).length;
         const needMore = Math.max(0, targetForMeal - lockedInMeal);
 
-        this.pickBestMealItems(mealItems, needMore, keepIds).forEach((item) =>
-          keepIds.add(item.id),
+        this.pickBestMealItems(mealItems, needMore, keepIds, dayItems).forEach(
+          (item) => keepIds.add(item.id),
         );
       }
 
@@ -1527,17 +1783,41 @@ export class MealPlanService {
           dayItems,
           targetDishesPerDay - keepIds.size,
           keepIds,
+          dayItems,
         ).forEach((item) => keepIds.add(item.id));
       }
 
-      dayItems
-        .filter((item) => !item.isLocked && !keepIds.has(item.id))
-        .forEach((item) => idsToRemove.push(item.id));
+      // Removed nutrition calorie limit check
+
+      const dayToRemove = dayItems.filter(
+        (item) => !item.isLocked && !keepIds.has(item.id),
+      );
+      for (const item of dayToRemove) {
+        idsToRemove.push(item.id);
+        removedItemsDetails.push({
+          recipeName: item.recipe?.name || 'Món ăn không tên',
+          mealType: item.mealType,
+          dayOfWeek: this.getDayOfWeekIndex(item.mealDate),
+        });
+      }
+
+      optimized = true;
+      afterCount = keepIds.size;
     }
 
-    if (idsToRemove.length > 0) {
+    if (idsToRemove.length > 0 && !errorReason) {
       await this.itemRepo.delete({ id: In(idsToRemove) });
+    } else {
+      optimized = false;
     }
+
+    return {
+      optimized,
+      beforeCount,
+      afterCount,
+      removedItems: removedItemsDetails,
+      errorReason,
+    };
   }
 
   private getTargetDishesCount(servings: number, mealType: string): number {
@@ -1579,17 +1859,88 @@ export class MealPlanService {
       noRepeatIn7Days?: boolean;
     },
     state: { hasUsedDuplicates: boolean },
+    dayItemsList: MealPlanItem[] = [],
+    dateStr: string = '',
+    mealType: string = '',
   ): any[] {
-    const result = selectRecipesAvoidingRepeats(
-      recommendations,
-      targetCount,
-      context,
-    );
-    if (result.usedFallback) {
-      state.hasUsedDuplicates = true;
+    if (!recommendations || recommendations.length === 0 || targetCount <= 0) {
+      return [];
     }
 
-    return result.selected;
+    const candidateRecipes: Recipe[] = [];
+    const seenCandidateIds = new Set<string>();
+    for (const rec of recommendations) {
+      const recipe = rec.recipe;
+      if (recipe && recipe.id && !seenCandidateIds.has(recipe.id)) {
+        seenCandidateIds.add(recipe.id);
+        candidateRecipes.push(recipe);
+      }
+    }
+
+    const usedRecipeIdsForDay = context.currentDayRecipeIds;
+    const duplicateRecipes = candidateRecipes.filter((r) =>
+      usedRecipeIdsForDay.has(r.id),
+    );
+    const duplicateRecipeNames = duplicateRecipes.map((r) => r.name);
+    const nonDuplicateCandidates = candidateRecipes.filter(
+      (r) => !usedRecipeIdsForDay.has(r.id),
+    );
+
+    const selected: Recipe[] = [];
+    let reuseReason = '';
+
+    while (selected.length < targetCount && nonDuplicateCandidates.length > 0) {
+      const nextRecipe = nonDuplicateCandidates.shift();
+      selected.push(nextRecipe);
+      usedRecipeIdsForDay.add(nextRecipe.id);
+      context.currentDayRecipeNames.add(nextRecipe.name);
+    }
+
+    if (selected.length < targetCount) {
+      reuseReason = `Không đủ món chưa dùng trong ngày cho bữa ${mealType} (Cần ${targetCount} món, chỉ tìm được ${selected.length} món mới).`;
+      state.hasUsedDuplicates = true;
+
+      const getOccurrenceCount = (recipeId: string): number => {
+        const countInDayItems = dayItemsList.filter(
+          (item) => item.recipeId === recipeId,
+        ).length;
+        const countInSelected = selected.filter(
+          (r) => r.id === recipeId,
+        ).length;
+        return countInDayItems + countInSelected;
+      };
+
+      const reuseCandidates = candidateRecipes.filter((recipe) => {
+        const occurrences = getOccurrenceCount(recipe.id);
+        return occurrences < 2;
+      });
+
+      reuseCandidates.sort((a, b) => {
+        const countA = getOccurrenceCount(a.id);
+        const countB = getOccurrenceCount(b.id);
+        if (countA !== countB) {
+          return countA - countB;
+        }
+        return candidateRecipes.indexOf(a) - candidateRecipes.indexOf(b);
+      });
+
+      while (selected.length < targetCount && reuseCandidates.length > 0) {
+        const nextRecipe = reuseCandidates.shift();
+        selected.push(nextRecipe);
+        usedRecipeIdsForDay.add(nextRecipe.id);
+        context.currentDayRecipeNames.add(nextRecipe.name);
+      }
+    }
+
+    this.logger.log(
+      `[AI Meal Planner Log] Ngày ${dateStr} - Bữa ${mealType}:
+      - Tổng số món khả dụng: ${candidateRecipes.length}
+      - Tổng số món đã dùng trong ngày: ${usedRecipeIdsForDay.size}
+      - Danh sách món bị loại vì trùng: [${duplicateRecipeNames.join(', ')}]
+      - Lý do tái sử dụng: ${reuseReason || 'Không cần tái sử dụng (đủ món mới)'}`,
+    );
+
+    return selected;
   }
 
   private selectRecipesForSlot(

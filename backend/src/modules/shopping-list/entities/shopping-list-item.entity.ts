@@ -22,6 +22,12 @@ export class ShoppingListItem {
   @Column({ type: 'decimal', precision: 8, scale: 2 })
   quantity: number;
 
+  @Column({ type: 'decimal', precision: 8, scale: 2, default: 0 })
+  quantityNeeded: number;
+
+  @Column({ type: 'decimal', precision: 8, scale: 2, default: 0 })
+  quantitySourced: number;
+
   @Column({ type: 'varchar', length: 20 })
   unit: string;
 

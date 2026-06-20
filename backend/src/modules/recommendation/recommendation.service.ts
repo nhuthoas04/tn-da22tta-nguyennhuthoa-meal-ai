@@ -182,7 +182,7 @@ export class RecommendationService {
 
     // 1.1. Diabetes Filter (Loại món ăn nhiều đường)
     if (healthConditions.includes('diabetes')) {
-      const maxSugar = preferences?.maxSugarPerMeal
+      const maxSugar = (preferences?.maxSugarPerMeal !== null && preferences?.maxSugarPerMeal !== undefined)
         ? Number(preferences.maxSugarPerMeal)
         : 5.0;
       recipes = recipes.filter(
@@ -192,7 +192,7 @@ export class RecommendationService {
 
     // 1.2. Hypertension Filter (Loại món ăn nhiều muối/natri)
     if (healthConditions.includes('hypertension')) {
-      const maxSodium = preferences?.maxSodiumPerMeal
+      const maxSodium = (preferences?.maxSodiumPerMeal !== null && preferences?.maxSodiumPerMeal !== undefined)
         ? Number(preferences.maxSodiumPerMeal)
         : 500.0;
       recipes = recipes.filter(
@@ -210,7 +210,7 @@ export class RecommendationService {
 
     // 1.4. Muscle Gain Protein Minimum Filter (Loại món không đáp ứng protein tối thiểu)
     if (healthConditions.includes('muscle_gain')) {
-      const minProtein = preferences?.minProteinPerMeal
+      const minProtein = (preferences?.minProteinPerMeal !== null && preferences?.minProteinPerMeal !== undefined)
         ? Number(preferences.minProteinPerMeal)
         : 25.0;
       recipes = recipes.filter((r) => Number(r.protein) >= minProtein);
@@ -340,7 +340,7 @@ export class RecommendationService {
             name: ri.ingredient.name,
             quantity: ri.quantity,
             unit: ri.unit,
-            estimatedPrice: ri.ingredient.averagePrice || null,
+            estimatedPrice: null,
           });
         }
       }

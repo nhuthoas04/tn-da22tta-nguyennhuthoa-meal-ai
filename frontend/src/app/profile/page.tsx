@@ -13,6 +13,7 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<any>(null);
   const [calorieBreakdown, setCalorieBreakdown] = useState<any>(null);
   const [allergyInput, setAllergyInput] = useState('');
+  const [focusedField, setFocusedField] = useState<string | null>(null);
   const [stats, setStats] = useState<any>(null);
   const [statsLoading, setStatsLoading] = useState(true);
 
@@ -189,6 +190,12 @@ export default function ProfilePage() {
   };
 
   const calorieInfo = getRealtimeCalorieInfo();
+  const currentConditions = profile?.preferences?.healthConditions
+    ? profile.preferences.healthConditions.split(',').map((c: string) => c.trim().toLowerCase())
+    : [];
+  const isDiabetesChecked = currentConditions.includes('diabetes');
+  const isHypertensionChecked = currentConditions.includes('hypertension');
+  const isMuscleGainChecked = currentConditions.includes('muscle_gain');
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto px-4 py-6 bg-brand-light-bg min-h-screen">
@@ -414,113 +421,13 @@ export default function ProfilePage() {
         )}
       </div>
 
-      {/* Preferences */}
-      <div className="card-dashboard bg-white space-y-4">
-        <h2 className="font-bold text-slate-900 text-base border-b border-brand-light-border pb-3">🍽️ Sở thích ẩm thực</h2>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Chế độ ăn</label>
-            <select
-              value={profile.preferences?.dietType || ''}
-              onChange={(e) => updatePref('dietType', e.target.value)}
-              className="w-full px-3 py-2 border border-brand-light-border rounded-brand-sm text-sm font-medium focus:ring-2 focus:ring-brand-primary/10 focus:border-brand-primary outline-none cursor-pointer"
-            >
-              <option value="">Bình thường</option>
-              <option value="vegetarian">Ăn chay</option>
-              <option value="lowcarb">Low carb</option>
-              <option value="keto">Keto</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Thời gian nấu tối đa (phút)</label>
-            <input
-              type="number"
-              value={profile.preferences?.maxCookingTime || ''}
-              onChange={(e) => updatePref('maxCookingTime', Number(e.target.value))}
-              placeholder="VD: 30"
-              className="w-full px-3 py-2 border border-brand-light-border rounded-brand-sm text-sm font-medium focus:ring-2 focus:ring-brand-primary/10 focus:border-brand-primary outline-none"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Ngân sách/bữa (VNĐ)</label>
-            <input
-              type="number"
-              value={profile.preferences?.budgetPerMeal || ''}
-              onChange={(e) => updatePref('budgetPerMeal', Number(e.target.value))}
-              placeholder="VD: 50000"
-              className="w-full px-3 py-2 border border-brand-light-border rounded-brand-sm text-sm font-medium focus:ring-2 focus:ring-brand-primary/10 focus:border-brand-primary outline-none"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Số người ăn</label>
-            <input
-              type="number"
-              value={profile.preferences?.servings || ''}
-              onChange={(e) => updatePref('servings', Number(e.target.value))}
-              placeholder="VD: 4"
-              className="w-full px-3 py-2 border border-brand-light-border rounded-brand-sm text-sm font-medium focus:ring-2 focus:ring-brand-primary/10 focus:border-brand-primary outline-none"
-            />
-          </div>
-          <div className="sm:col-span-2 mt-2">
-            <label className="block text-sm mb-1 flex items-center gap-1.5 text-rose-600 font-bold">
-              ⚠️ Dị ứng thực phẩm (Chất gây dị ứng)
-            </label>
-            <p className="text-xs text-slate-400 mb-2 font-medium">
-              Nhập các thành phần bạn bị dị ứng. AI sẽ tự động loại bỏ các món ăn có chứa các chất này ra khỏi gợi ý và thực đơn tuần của bạn.
-            </p>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={allergyInput}
-                onChange={(e) => setAllergyInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    addAllergy();
-                  }
-                }}
-                placeholder="Nhập tên chất dị ứng (VD: tôm, lạc, sữa, hải sản...) và bấm Enter"
-                className="flex-1 px-3 py-2 border border-brand-light-border rounded-brand-sm text-sm outline-none focus:ring-2 focus:ring-brand-primary/10 focus:border-brand-primary font-medium"
-              />
-              <button
-                type="button"
-                onClick={addAllergy}
-                className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-brand-sm text-xs font-bold border border-rose-100 transition-all cursor-pointer shadow-brand-sm"
-              >
-                Thêm tag
-              </button>
-            </div>
-            {profile.preferences?.allergies && profile.preferences.allergies.length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-3">
-                {profile.preferences.allergies.map((allergy: string, i: number) => (
-                  <span
-                    key={i}
-                    className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-50 text-rose-700 border border-rose-100 rounded-brand-sm text-xs font-bold shadow-brand-sm transition-all"
-                  >
-                    ⚠️ {allergy}
-                    <button
-                      type="button"
-                      onClick={() => removeAllergy(i)}
-                      className="hover:bg-rose-200 rounded-full p-0.5 text-xs text-rose-500 hover:text-rose-800 transition cursor-pointer"
-                    >
-                      ✕
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
       {/* Health Profile & Medical Constraints */}
       <div className="card-dashboard bg-white space-y-4 animate-fade-in">
         <h2 className="font-bold text-slate-900 text-base flex items-center gap-2 border-b border-brand-light-border pb-3">
           🩺 Hồ sơ sức khỏe & Giới hạn y khoa
         </h2>
-        <p className="text-xs text-slate-400 font-semibold">
-          AI Assistant và thuật toán gợi ý 2 tầng sẽ tự động lọc các món ăn không an toàn dựa trên tình trạng y tế của bạn.
+        <p className="text-xs text-slate-500 font-semibold bg-emerald-50/50 p-3 rounded-brand-md border border-brand-primary/10">
+          Bạn chỉ cần chọn tình trạng sức khỏe. Các giới hạn dinh dưỡng sẽ tự động áp dụng theo giá trị mặc định an toàn. Chỉ nhập khi muốn tùy chỉnh riêng.
         </p>
 
         {/* Health Conditions Checkboxes */}
@@ -567,34 +474,187 @@ export default function ProfilePage() {
         </div>
 
         {/* Custom Nutrient Bounds */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-          <div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 font-medium">
+          <div className="flex flex-col items-start min-h-[85px]">
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Đường tối đa / bữa (g)</label>
             <input
               type="number"
               value={profile.preferences?.maxSugarPerMeal ?? ''}
-              onChange={(e) => updatePref('maxSugarPerMeal', e.target.value ? Number(e.target.value) : null)}
-              placeholder="Mặc định: 5g"
+              onChange={(e) => updatePref('maxSugarPerMeal', e.target.value !== '' ? Number(e.target.value) : null)}
+              onFocus={() => setFocusedField('maxSugarPerMeal')}
+              onBlur={() => setFocusedField(null)}
+              placeholder="Để trống = 5g"
               className="w-full px-3 py-2 border border-brand-light-border rounded-brand-sm text-sm font-medium focus:ring-2 focus:ring-brand-primary/10 focus:border-brand-primary outline-none"
             />
+            {(() => {
+              const isCustom = profile.preferences?.maxSugarPerMeal !== null && profile.preferences?.maxSugarPerMeal !== undefined && profile.preferences?.maxSugarPerMeal !== '';
+              const showBadge = isCustom || isDiabetesChecked || focusedField === 'maxSugarPerMeal';
+              if (!showBadge) return null;
+              return isCustom ? (
+                <span className="inline-flex items-center mt-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                  ✓ Đang sử dụng giá trị tùy chỉnh: {profile.preferences.maxSugarPerMeal}g
+                </span>
+              ) : (
+                <span className="inline-flex items-center mt-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  ✓ Đang sử dụng giá trị mặc định: 5g
+                </span>
+              );
+            })()}
           </div>
-          <div>
+          <div className="flex flex-col items-start min-h-[85px]">
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Muối (Natri) tối đa / bữa (mg)</label>
             <input
               type="number"
               value={profile.preferences?.maxSodiumPerMeal ?? ''}
-              onChange={(e) => updatePref('maxSodiumPerMeal', e.target.value ? Number(e.target.value) : null)}
-              placeholder="Mặc định: 500mg"
+              onChange={(e) => updatePref('maxSodiumPerMeal', e.target.value !== '' ? Number(e.target.value) : null)}
+              onFocus={() => setFocusedField('maxSodiumPerMeal')}
+              onBlur={() => setFocusedField(null)}
+              placeholder="Để trống = 500mg"
               className="w-full px-3 py-2 border border-brand-light-border rounded-brand-sm text-sm font-medium focus:ring-2 focus:ring-brand-primary/10 focus:border-brand-primary outline-none"
             />
+            {(() => {
+              const isCustom = profile.preferences?.maxSodiumPerMeal !== null && profile.preferences?.maxSodiumPerMeal !== undefined && profile.preferences?.maxSodiumPerMeal !== '';
+              const showBadge = isCustom || isHypertensionChecked || focusedField === 'maxSodiumPerMeal';
+              if (!showBadge) return null;
+              return isCustom ? (
+                <span className="inline-flex items-center mt-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                  ✓ Đang sử dụng giá trị tùy chỉnh: {profile.preferences.maxSodiumPerMeal}mg
+                </span>
+              ) : (
+                <span className="inline-flex items-center mt-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  ✓ Đang sử dụng giá trị mặc định: 500mg
+                </span>
+              );
+            })()}
           </div>
-          <div>
+          <div className="flex flex-col items-start min-h-[85px]">
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Protein tối thiểu / bữa (g)</label>
             <input
               type="number"
               value={profile.preferences?.minProteinPerMeal ?? ''}
-              onChange={(e) => updatePref('minProteinPerMeal', e.target.value ? Number(e.target.value) : null)}
-              placeholder="Mặc định: 25g"
+              onChange={(e) => updatePref('minProteinPerMeal', e.target.value !== '' ? Number(e.target.value) : null)}
+              onFocus={() => setFocusedField('minProteinPerMeal')}
+              onBlur={() => setFocusedField(null)}
+              placeholder="Để trống = 25g"
+              className="w-full px-3 py-2 border border-brand-light-border rounded-brand-sm text-sm font-medium focus:ring-2 focus:ring-brand-primary/10 focus:border-brand-primary outline-none"
+            />
+            {(() => {
+              const isCustom = profile.preferences?.minProteinPerMeal !== null && profile.preferences?.minProteinPerMeal !== undefined && profile.preferences?.minProteinPerMeal !== '';
+              const showBadge = isCustom || isMuscleGainChecked || focusedField === 'minProteinPerMeal';
+              if (!showBadge) return null;
+              return isCustom ? (
+                <span className="inline-flex items-center mt-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                  ✓ Đang sử dụng giá trị tùy chỉnh: {profile.preferences.minProteinPerMeal}g
+                </span>
+              ) : (
+                <span className="inline-flex items-center mt-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  ✓ Đang sử dụng giá trị mặc định: 25g
+                </span>
+              );
+            })()}
+          </div>
+        </div>
+      </div>
+
+      {/* Preferences */}
+      <div className="card-dashboard bg-white space-y-4">
+        <h2 className="font-bold text-slate-900 text-base border-b border-brand-light-border pb-3">🍽️ Sở thích ẩm thực</h2>
+
+        {/* Food Allergy Block at the top */}
+        <div className="mt-2">
+          <label className="block text-sm mb-1 flex items-center gap-1.5 text-rose-600 font-bold">
+            ⚠️ Dị ứng thực phẩm (Chất gây dị ứng)
+          </label>
+          <p className="text-xs text-slate-400 mb-2 font-medium">
+            Nhập các thành phần bạn bị dị ứng. AI sẽ tự động loại bỏ các món ăn có chứa các chất này ra khỏi gợi ý và thực đơn tuần của bạn.
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={allergyInput}
+              onChange={(e) => setAllergyInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  addAllergy();
+                }
+              }}
+              placeholder="Nhập tên chất dị ứng (VD: tôm, lạc, sữa, hải sản...) và bấm Enter"
+              className="flex-1 px-3 py-2 border border-brand-light-border rounded-brand-sm text-sm outline-none focus:ring-2 focus:ring-brand-primary/10 focus:border-brand-primary font-medium"
+            />
+            <button
+              type="button"
+              onClick={addAllergy}
+              className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-brand-sm text-xs font-bold border border-rose-100 transition-all cursor-pointer shadow-brand-sm"
+            >
+              Thêm tag
+            </button>
+          </div>
+          {profile.preferences?.allergies && profile.preferences.allergies.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-3">
+              {profile.preferences.allergies.map((allergy: string, i: number) => (
+                <span
+                  key={i}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-50 text-rose-700 border border-rose-100 rounded-brand-sm text-xs font-bold shadow-brand-sm transition-all"
+                >
+                  ⚠️ {allergy}
+                  <button
+                    type="button"
+                    onClick={() => removeAllergy(i)}
+                    className="hover:bg-rose-200 rounded-full p-0.5 text-xs text-rose-500 hover:text-rose-800 transition cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <hr className="border-brand-light-border my-4" />
+
+        {/* Other Preference Fields in the Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Chế độ ăn</label>
+            <select
+              value={profile.preferences?.dietType || ''}
+              onChange={(e) => updatePref('dietType', e.target.value)}
+              className="w-full px-3 py-2 border border-brand-light-border rounded-brand-sm text-sm font-medium focus:ring-2 focus:ring-brand-primary/10 focus:border-brand-primary outline-none cursor-pointer"
+            >
+              <option value="">Bình thường</option>
+              <option value="vegetarian">Ăn chay</option>
+              <option value="lowcarb">Low carb</option>
+              <option value="keto">Keto</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Thời gian nấu tối đa (phút)</label>
+            <input
+              type="number"
+              value={profile.preferences?.maxCookingTime || ''}
+              onChange={(e) => updatePref('maxCookingTime', Number(e.target.value))}
+              placeholder="VD: 30"
+              className="w-full px-3 py-2 border border-brand-light-border rounded-brand-sm text-sm font-medium focus:ring-2 focus:ring-brand-primary/10 focus:border-brand-primary outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Ngân sách/bữa (VNĐ)</label>
+            <input
+              type="number"
+              value={profile.preferences?.budgetPerMeal || ''}
+              onChange={(e) => updatePref('budgetPerMeal', Number(e.target.value))}
+              placeholder="VD: 50000"
+              className="w-full px-3 py-2 border border-brand-light-border rounded-brand-sm text-sm font-medium focus:ring-2 focus:ring-brand-primary/10 focus:border-brand-primary outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Số người ăn</label>
+            <input
+              type="number"
+              value={profile.preferences?.servings || ''}
+              onChange={(e) => updatePref('servings', Number(e.target.value))}
+              placeholder="VD: 4"
               className="w-full px-3 py-2 border border-brand-light-border rounded-brand-sm text-sm font-medium focus:ring-2 focus:ring-brand-primary/10 focus:border-brand-primary outline-none"
             />
           </div>
