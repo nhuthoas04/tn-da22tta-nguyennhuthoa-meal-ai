@@ -12,6 +12,8 @@ import { MealPlanModule } from '../meal-plan/meal-plan.module';
 import { ShoppingListModule } from '../shopping-list/shopping-list.module';
 import { RecommendationModule } from '../recommendation/recommendation.module';
 import { ConfigModule } from '@nestjs/config';
+import { ChatbotIntentService } from './chatbot-intent.service';
+import { ChatbotCommandService } from './chatbot-command.service';
 
 @Module({
   imports: [
@@ -24,7 +26,12 @@ import { ConfigModule } from '@nestjs/config';
     ConfigModule,
   ],
   controllers: [ChatbotController],
-  providers: [ChatbotAIService, ChatbotActionHandler],
-  exports: [ChatbotAIService, TypeOrmModule],
+  providers: [
+    ChatbotAIService,
+    ChatbotActionHandler,
+    ChatbotIntentService,
+    ChatbotCommandService,
+  ],
+  exports: [ChatbotAIService, ChatbotCommandService, TypeOrmModule],
 })
 export class ChatbotModule {}

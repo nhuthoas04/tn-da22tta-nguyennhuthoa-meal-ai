@@ -41,8 +41,8 @@ export class UserPreference {
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
   budgetPerMeal: number; // VND
 
-  @Column({ type: 'int', default: 4 })
-  servings: number; // Family size
+  @Column({ type: 'int', nullable: true })
+  servings: number | null; // Family size
 
   @Column({ type: 'varchar', length: 500, nullable: true })
   healthConditions: string; // e.g. 'diabetes,hypertension'

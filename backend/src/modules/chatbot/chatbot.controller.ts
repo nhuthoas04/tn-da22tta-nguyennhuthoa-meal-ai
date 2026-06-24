@@ -9,15 +9,42 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ChatbotAIService } from './chatbot-ai.service';
+import { ChatbotCommandService } from './chatbot-command.service';
+import { CHATBOT_INTENTS, ChatbotEntities, ChatbotIntent } from './chatbot.types';
+import { BadRequestException } from '@nestjs/common';
 
 @Controller('chatbot')
 @UseGuards(AuthGuard('jwt'))
 export class ChatbotController {
-  constructor(private readonly chatbotAIService: ChatbotAIService) {}
+  constructor(
+    private readonly chatbotAIService: ChatbotAIService,
+    private readonly chatbotCommandService: ChatbotCommandService,
+  ) {}
 
   @Post('message')
   async sendMessage(@Req() req: any, @Body() body: { message: string }) {
-    return await this.chatbotAIService.sendMessage(req.user.id, body.message);
+    if (!body.message?.trim()) {
+      throw new BadRequestException('Tin nhắn không được để trống');
+    }
+    return await this.chatbotCommandService.sendMessage(
+      req.user.id,
+      body.message,
+    );
+  }
+
+  @Post('action')
+  async executeAction(
+    @Req() req: any,
+    @Body() body: { intent: ChatbotIntent; entities?: ChatbotEntities },
+  ) {
+    if (!CHATBOT_INTENTS.includes(body.intent)) {
+      throw new BadRequestException('Intent không hợp lệ');
+    }
+    return await this.chatbotCommandService.executeAction(
+      req.user.id,
+      body.intent,
+      body.entities || {},
+    );
   }
 
   @Get('history')

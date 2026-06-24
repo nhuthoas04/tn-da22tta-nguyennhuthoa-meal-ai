@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { HiSparkles } from 'react-icons/hi';
+import { API_BASE_URL } from '@/lib/api';
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -12,16 +13,32 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loginError, setLoginError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setLoginError('');
     try {
       await login(email, password);
       toast.success('Đăng nhập thành công!');
       router.push('/');
-    } catch {
-      toast.error('Email hoặc mật khẩu không đúng');
+    } catch (err: any) {
+      let message = '';
+      const status = err.response?.status;
+      if (err.code === 'ERR_NETWORK' || !err.response) {
+        message = 'Không kết nối được backend. Vui lòng kiểm tra backend đang chạy ở http://localhost:3001.';
+      } else if (status === 401) {
+        message = 'Email hoặc mật khẩu không đúng.';
+      } else if (status === 404) {
+        message = 'Sai endpoint API đăng nhập. Kiểm tra cấu hình NEXT_PUBLIC_API_URL hoặc AuthController.';
+      } else if (status >= 500) {
+        message = 'Lỗi máy chủ. Vui lòng kiểm tra backend hoặc PostgreSQL.';
+      } else {
+        message = err.response?.data?.message || 'Email hoặc mật khẩu không đúng.';
+      }
+      setLoginError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -75,6 +92,15 @@ export default function LoginPage() {
           >
             {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
           </button>
+
+          {loginError && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <p className="font-semibold">{loginError}</p>
+              <p className="mt-1 text-xs text-red-600">
+                URL đang gọi: {API_BASE_URL}/auth/login
+              </p>
+            </div>
+          )}
 
           <p className="text-center text-sm text-gray-500">
             Chưa có tài khoản?{' '}

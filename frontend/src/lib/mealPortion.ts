@@ -17,12 +17,28 @@ export interface MealPortionWarningResult {
 export function getMaxRecommendedDishes(servingsInput: number): number {
   const servings = Math.max(1, Math.floor(Number(servingsInput) || 1));
 
-  if (servings <= 1) return 5;
+  if (servings <= 1) return 6;
   if (servings <= 2) return 8;
-  if (servings <= 4) return 12;
-  if (servings <= 6) return 15;
+  if (servings <= 4) return 11;
+  if (servings <= 6) return 14;
 
   return Math.ceil(servings * 2.5);
+}
+
+export function getMealSlotLimit(servingsInput: number, mealType: string): number {
+  const servings = Math.max(1, Math.floor(Number(servingsInput) || 1));
+
+  if (servings <= 1) return 2;
+  if (servings === 2) return mealType === 'breakfast' ? 2 : 3;
+  if (servings <= 4) return mealType === 'breakfast' ? 3 : 4;
+  if (servings <= 6) return mealType === 'breakfast' ? 4 : 5;
+
+  const max = getMaxRecommendedDishes(servings);
+  const breakfast = Math.max(4, Math.round(max * 0.28));
+  const lunch = Math.max(5, Math.round((max - breakfast) / 2));
+  if (mealType === 'breakfast') return breakfast;
+  if (mealType === 'lunch') return lunch;
+  return Math.max(5, max - breakfast - lunch);
 }
 
 export function getMaxDishesByServings(servings: number): number {

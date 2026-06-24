@@ -25,11 +25,11 @@ export default function Footer() {
 function LandingFooter() {
   return (
     <ScrollReveal>
-      <footer className="relative z-10 border-t border-slate-200 bg-slate-50 text-slate-600 text-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-16 grid grid-cols-1 md:grid-cols-12 gap-10">
+      <footer suppressHydrationWarning className="relative z-10 border-t border-slate-200 bg-slate-50 text-slate-600 text-sm">
+        <div suppressHydrationWarning className="max-w-7xl mx-auto px-4 sm:px-6 py-16 grid grid-cols-1 md:grid-cols-12 gap-10">
         
         {/* Brand column */}
-        <div className="md:col-span-4 space-y-4 text-left">
+        <div suppressHydrationWarning className="md:col-span-4 space-y-4 text-left">
           <Link href="/" className="flex items-center gap-2 group">
             <HiSparkles className="text-2xl text-emerald-500 transition-transform group-hover:rotate-12 duration-300" />
             <span className="font-extrabold text-xl text-slate-900 tracking-tight">
@@ -42,7 +42,7 @@ function LandingFooter() {
         </div>
 
         {/* Column 2: Features */}
-        <div className="md:col-span-3 space-y-4 text-left">
+        <div suppressHydrationWarning className="md:col-span-3 space-y-4 text-left">
           <h5 className="font-bold text-slate-900 text-xs uppercase tracking-wider">Tính năng</h5>
           <ul className="space-y-2.5 text-xs font-semibold">
             <li>
@@ -74,7 +74,7 @@ function LandingFooter() {
         </div>
 
         {/* Column 3: Contact */}
-        <div className="md:col-span-3 space-y-4 text-left">
+        <div suppressHydrationWarning className="md:col-span-3 space-y-4 text-left">
           <h5 className="font-bold text-slate-900 text-xs uppercase tracking-wider">Liên hệ</h5>
           <ul className="space-y-2.5 text-xs font-semibold">
             <li>
@@ -101,7 +101,7 @@ function LandingFooter() {
         </div>
 
         {/* Column 4: Legal */}
-        <div className="md:col-span-2 space-y-4 text-left">
+        <div suppressHydrationWarning className="md:col-span-2 space-y-4 text-left">
           <h5 className="font-bold text-slate-900 text-xs uppercase tracking-wider">Pháp lý</h5>
           <ul className="space-y-2.5 text-xs font-semibold">
             <li>

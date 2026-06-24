@@ -1,15 +1,21 @@
 import axios, { type AxiosResponse } from 'axios';
 import { normalizeWeekStart, notifyMealPlanChanged } from './mealPlanEvents';
 
-// Create axios instance configured for our NestJS backend
-let rawBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-rawBaseUrl = rawBaseUrl.replace(/\/+$/, '');
-if (rawBaseUrl && !rawBaseUrl.endsWith('/api/v1')) {
-    rawBaseUrl = `${rawBaseUrl}/api/v1`;
-}
+const API_VERSION_PREFIX = '/api/v1';
+
+const normalizeApiBaseUrl = (value?: string) => {
+    const fallback = 'http://localhost:3001';
+    const base = (value || fallback).trim().replace(/\/+$/, '');
+    const withoutDuplicatePrefix = base.replace(/(\/api\/v1)+$/i, '');
+    return `${withoutDuplicatePrefix}${API_VERSION_PREFIX}`;
+};
+
+// Create axios instance configured for our NestJS backend.
+// Local dev default: http://localhost:3001/api/v1
+export const API_BASE_URL = normalizeApiBaseUrl(process.env.NEXT_PUBLIC_API_URL);
 
 const api = axios.create({
-    baseURL: rawBaseUrl,
+    baseURL: API_BASE_URL,
     headers: { 'Content-Type': 'application/json' },
 });
 
@@ -186,7 +192,7 @@ export const mealPlanAPI = {
             mutation: 'generate',
             weekStart: data?.weekStart,
         }),
-    generateForDays: (data: { weekStart?: string; days?: number[]; mealDates?: string[]; useAntiWaste?: boolean; overwrite?: boolean; optimizePortions?: boolean; prioritizeNew?: boolean; noRepeatIn7Days?: boolean; avoidRepeatMeals?: boolean }) =>
+    generateForDays: (data: { weekStart?: string; days?: number[]; mealDates?: string[]; useAntiWaste?: boolean; mealType?: string; mealTypes?: string[]; overwrite?: boolean; optimizePortions?: boolean; prioritizeNew?: boolean; noRepeatIn7Days?: boolean; avoidRepeatMeals?: boolean }) =>
         invalidateMealPlanAfter(api.post('/meal-plans/generate-days', data), {
             mutation: 'generate-days',
             weekStart: data.weekStart,

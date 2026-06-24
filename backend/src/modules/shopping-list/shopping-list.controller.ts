@@ -52,12 +52,13 @@ export class ShoppingListController {
   @Post('generate')
   generate(
     @Request() req,
-    @Body() dto: { mealPlanId: string; days?: number[] },
+    @Body() dto: { mealPlanId: string; days?: number[]; mealDates?: string[] },
   ) {
     return this.shoppingListService.generateFromPlan(
       req.user.id,
       dto.mealPlanId,
       dto.days,
+      dto.mealDates,
     );
   }
 

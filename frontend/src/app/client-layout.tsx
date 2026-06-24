@@ -50,7 +50,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex flex-col min-h-screen" suppressHydrationWarning>
       <Navbar />
       <main className={`flex-grow ${isLandingPage ? "" : "max-w-7xl mx-auto px-3 py-4 w-full sm:px-6 sm:py-6"}`}>
         <AuthGuard>{children}</AuthGuard>

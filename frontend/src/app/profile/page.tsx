@@ -4,7 +4,12 @@ import { useAuth } from '@/context/AuthContext';
 import { authAPI } from '@/lib/api';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
-import { HiUser, HiFire, HiSave, HiHeart, HiBookOpen, HiEye, HiStar, HiCalendar } from 'react-icons/hi';
+import { HiUser, HiFire, HiSave, HiHeart, HiBookOpen, HiEye, HiStar, HiCalendar, HiChevronDown, HiChevronUp } from 'react-icons/hi';
+import { ACTIVITY_FACTORS, calculateTdee, type TdeeResult } from '@/lib/tdee-utils';
+
+type ServingsValidation =
+  | { valid: true; servings: number }
+  | { valid: false; message: string };
 
 export default function ProfilePage() {
   const { user, refreshUser } = useAuth();
@@ -16,6 +21,8 @@ export default function ProfilePage() {
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [stats, setStats] = useState<any>(null);
   const [statsLoading, setStatsLoading] = useState(true);
+  const [servingsError, setServingsError] = useState('');
+  const [showTdeeFormula, setShowTdeeFormula] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -48,7 +55,25 @@ export default function ProfilePage() {
     }
   };
 
+  const validateServings = (rawValue: unknown): ServingsValidation => {
+    const value = String(rawValue ?? '').trim();
+    if (!value) return { valid: false, message: 'Vui lòng nhập số người ăn.' };
+    if (!/^\d+$/.test(value)) return { valid: false, message: 'Số người ăn phải là số nguyên.' };
+
+    const servings = Number(value);
+    if (servings < 1) return { valid: false, message: 'Số người ăn phải lớn hơn hoặc bằng 1.' };
+    if (servings > 20) return { valid: false, message: 'Số người ăn không được vượt quá 20.' };
+
+    return { valid: true, servings };
+  };
+
   const saveProfile = async () => {
+    const servingsValidation = validateServings(profile.preferences?.servings);
+    if (!servingsValidation.valid) {
+      setServingsError(servingsValidation.message);
+      return;
+    }
+
     setSaving(true);
     try {
       const res = await authAPI.updateProfile({
@@ -58,13 +83,19 @@ export default function ProfilePage() {
         weight: profile.weight ? Number(profile.weight) : undefined,
         height: profile.height ? Number(profile.height) : undefined,
         activityLevel: profile.activityLevel,
-        preferences: profile.preferences,
+        preferences: {
+          ...profile.preferences,
+          servings: servingsValidation.servings,
+        },
       });
       toast.success('Đã cập nhật hồ sơ!');
       setCalorieBreakdown(res.data.calorieBreakdown);
+      setServingsError('');
       refreshUser();
-    } catch {
-      toast.error('Cập nhật thất bại');
+    } catch (err: any) {
+      const message = err?.response?.data?.message;
+      const normalizedMessage = Array.isArray(message) ? message[0] : message;
+      toast.error(normalizedMessage || 'Cập nhật thất bại');
     } finally {
       setSaving(false);
     }
@@ -90,6 +121,10 @@ export default function ProfilePage() {
   };
 
   const updatePref = (field: string, value: any) => {
+    if (field === 'servings') {
+      setServingsError('');
+    }
+
     setProfile({
       ...profile,
       preferences: { ...profile.preferences, [field]: value },
@@ -111,82 +146,9 @@ export default function ProfilePage() {
     updatePref('allergies', current.filter((_: any, i: number) => i !== indexToRemove));
   };
 
-  const getRealtimeCalorieInfo = () => {
+  const getRealtimeCalorieInfo = (): TdeeResult => {
     if (!profile) return { valid: false, msg: 'Chưa có thông tin hồ sơ.' };
-
-    const weight = Number(profile.weight);
-    const height = Number(profile.height);
-    const gender = profile.gender;
-    const dateOfBirth = profile.dateOfBirth;
-    const activityLevel = profile.activityLevel || 'moderate';
-
-    if (!weight || !height || isNaN(weight) || isNaN(height) || weight <= 0 || height <= 0) {
-      return {
-        valid: false,
-        msg: 'Vui lòng nhập Chiều cao và Cân nặng hợp lệ để hệ thống tính nhu cầu calo.'
-      };
-    }
-
-    if (!gender || (gender !== 'male' && gender !== 'female')) {
-      return {
-        valid: false,
-        msg: 'Vui lòng chọn Giới tính để tính nhu cầu calo chính xác.'
-      };
-    }
-
-    if (!dateOfBirth) {
-      return {
-        valid: false,
-        msg: 'Vui lòng chọn Ngày sinh để tính nhu cầu calo chính xác.'
-      };
-    }
-
-    // Calculate age
-    const today = new Date();
-    const birth = new Date(dateOfBirth);
-    if (isNaN(birth.getTime())) {
-      return {
-        valid: false,
-        msg: 'Ngày sinh không hợp lệ.'
-      };
-    }
-    let age = today.getFullYear() - birth.getFullYear();
-    const monthDiff = today.getMonth() - birth.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
-      age--;
-    }
-    if (age <= 0) age = 1;
-
-    // Step 1: Mifflin-St Jeor BMR
-    let bmr = 0;
-    if (gender === 'male') {
-      bmr = 10 * weight + 6.25 * height - 5 * age + 5;
-    } else {
-      bmr = 10 * weight + 6.25 * height - 5 * age - 161;
-    }
-
-    // Step-2: Apply activity factor
-    const multipliers: Record<string, number> = {
-      sedentary: 1.2,
-      light: 1.375,
-      moderate: 1.55,
-      active: 1.725,
-      very_active: 1.9,
-    };
-    const factor = multipliers[activityLevel] || 1.55;
-    const tdee = Math.round(bmr * factor);
-
-    const breakdown = {
-      breakfast: Math.round(tdee * 0.3),
-      lunch: Math.round(tdee * 0.4),
-      dinner: Math.round(tdee * 0.3),
-    };
-
-    return {
-      valid: true,
-      tdee,
-      breakdown,
-    };
+    return calculateTdee(profile);
   };
 
   const calorieInfo = getRealtimeCalorieInfo();
@@ -419,6 +381,73 @@ export default function ProfilePage() {
             <p>{calorieInfo.msg}</p>
           </div>
         )}
+
+        <div className="mt-4 overflow-hidden rounded-brand-md border border-brand-primary/15 bg-brand-primary/5">
+          <button
+            type="button"
+            onClick={() => setShowTdeeFormula((current) => !current)}
+            className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-brand-primary/5"
+            aria-expanded={showTdeeFormula}
+          >
+            <span>
+              <span className="block text-sm font-bold text-slate-900">Công thức tính TDEE</span>
+              <span className="mt-0.5 block text-xs text-slate-500">Cách hệ thống tính nhu cầu calories từ hồ sơ cơ thể</span>
+            </span>
+            {showTdeeFormula ? (
+              <HiChevronUp className="shrink-0 text-brand-primary" />
+            ) : (
+              <HiChevronDown className="shrink-0 text-brand-primary" />
+            )}
+          </button>
+
+          {showTdeeFormula && (
+            <div className="space-y-4 border-t border-brand-primary/10 bg-white px-4 py-4 text-xs leading-5 text-slate-600">
+              <p>
+                Hệ thống sử dụng công thức Mifflin-St Jeor để ước tính BMR, sau đó nhân với hệ số vận động để tính TDEE.
+              </p>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="rounded-brand-sm border border-slate-200 bg-slate-50 p-3">
+                  <p className="font-bold text-slate-900">Công thức BMR</p>
+                  <p className="mt-2"><strong>Nam:</strong> BMR = 10 × cân nặng + 6.25 × chiều cao − 5 × tuổi + 5</p>
+                  <p className="mt-1"><strong>Nữ:</strong> BMR = 10 × cân nặng + 6.25 × chiều cao − 5 × tuổi − 161</p>
+                  <p className="mt-2 font-semibold text-brand-primary">TDEE = BMR × hệ số vận động</p>
+                </div>
+
+                <div className="rounded-brand-sm border border-slate-200 bg-slate-50 p-3">
+                  <p className="font-bold text-slate-900">Hệ số vận động</p>
+                  <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1">
+                    {Object.values(ACTIVITY_FACTORS).map((activity) => (
+                      <div key={activity.label} className="contents">
+                        <span>{activity.label}</span>
+                        <strong className="text-right text-slate-800">{activity.factor}</strong>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {calorieInfo.valid && (
+                <div className="rounded-brand-sm border border-brand-primary/20 bg-brand-primary/5 p-3">
+                  <p className="font-bold text-slate-900">Phép tính theo hồ sơ hiện tại</p>
+                  <p className="mt-2">
+                    {calorieInfo.weight}kg, {calorieInfo.height}cm, {calorieInfo.age} tuổi, {calorieInfo.genderLabel}, vận động {calorieInfo.activityLabel.toLowerCase()}.
+                  </p>
+                  <p className="mt-1 font-medium text-slate-800">
+                    BMR = 10 × {calorieInfo.weight} + 6.25 × {calorieInfo.height} − 5 × {calorieInfo.age} {calorieInfo.gender === 'male' ? '+ 5' : '− 161'} = {calorieInfo.bmr.toLocaleString('vi-VN')} kcal
+                  </p>
+                  <p className="mt-1 font-bold text-brand-primary">
+                    TDEE = {calorieInfo.bmr.toLocaleString('vi-VN')} × {calorieInfo.activityFactor} = {calorieInfo.tdee.toLocaleString('vi-VN')} kcal/ngày
+                  </p>
+                </div>
+              )}
+
+              <p className="text-slate-500">
+                Kết quả chỉ mang tính tham khảo, không thay thế tư vấn từ chuyên gia dinh dưỡng.
+              </p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Health Profile & Medical Constraints */}
@@ -556,15 +585,12 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* Preferences */}
+      {/* Food Allergy Card (Top) */}
       <div className="card-dashboard bg-white space-y-4">
-        <h2 className="font-bold text-slate-900 text-base border-b border-brand-light-border pb-3">🍽️ Sở thích ẩm thực</h2>
-
-        {/* Food Allergy Block at the top */}
+        <h2 className="font-bold text-slate-900 text-base border-b border-brand-light-border pb-3 flex items-center gap-2">
+          ⚠️ Dị ứng thực phẩm (Chất gây dị ứng)
+        </h2>
         <div className="mt-2">
-          <label className="block text-sm mb-1 flex items-center gap-1.5 text-rose-600 font-bold">
-            ⚠️ Dị ứng thực phẩm (Chất gây dị ứng)
-          </label>
           <p className="text-xs text-slate-400 mb-2 font-medium">
             Nhập các thành phần bạn bị dị ứng. AI sẽ tự động loại bỏ các món ăn có chứa các chất này ra khỏi gợi ý và thực đơn tuần của bạn.
           </p>
@@ -610,11 +636,14 @@ export default function ProfilePage() {
             </div>
           )}
         </div>
+      </div>
 
-        <hr className="border-brand-light-border my-4" />
-
-        {/* Other Preference Fields in the Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {/* Culinary Preferences Card (Bottom) */}
+      <div className="card-dashboard bg-white space-y-4">
+        <h2 className="font-bold text-slate-900 text-base border-b border-brand-light-border pb-3">
+          🍽️ Sở thích ẩm thực
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-6">
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Chế độ ăn</label>
             <select
@@ -624,9 +653,10 @@ export default function ProfilePage() {
             >
               <option value="">Bình thường</option>
               <option value="vegetarian">Ăn chay</option>
-              <option value="lowcarb">Low carb</option>
-              <option value="keto">Keto</option>
+              <option value="lowcarb">Low carb (Hạn chế tinh bột)</option>
+              <option value="keto">Keto (Cắt tinh bột, nhiều béo)</option>
             </select>
+            <p className="text-[10px] text-slate-400 mt-1.5 font-medium">Lựa chọn chế độ ăn kiêng phù hợp (nếu có)</p>
           </div>
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Thời gian nấu tối đa (phút)</label>
@@ -637,6 +667,7 @@ export default function ProfilePage() {
               placeholder="VD: 30"
               className="w-full px-3 py-2 border border-brand-light-border rounded-brand-sm text-sm font-medium focus:ring-2 focus:ring-brand-primary/10 focus:border-brand-primary outline-none"
             />
+            <p className="text-[10px] text-slate-400 mt-1.5 font-medium">Để trống nếu không giới hạn thời gian nấu</p>
           </div>
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Ngân sách/bữa (VNĐ)</label>
@@ -647,16 +678,34 @@ export default function ProfilePage() {
               placeholder="VD: 50000"
               className="w-full px-3 py-2 border border-brand-light-border rounded-brand-sm text-sm font-medium focus:ring-2 focus:ring-brand-primary/10 focus:border-brand-primary outline-none"
             />
+            <p className="text-[10px] text-slate-400 mt-1.5 font-medium">Để trống nếu không giới hạn ngân sách</p>
           </div>
           <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Số người ăn</label>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Số người ăn *</label>
             <input
-              type="number"
-              value={profile.preferences?.servings || ''}
-              onChange={(e) => updatePref('servings', Number(e.target.value))}
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={profile.preferences?.servings ?? ''}
+              onChange={(e) => {
+                const nextValue = e.target.value;
+                if (nextValue === '' || /^\d+$/.test(nextValue)) {
+                  updatePref('servings', nextValue);
+                }
+              }}
               placeholder="VD: 4"
-              className="w-full px-3 py-2 border border-brand-light-border rounded-brand-sm text-sm font-medium focus:ring-2 focus:ring-brand-primary/10 focus:border-brand-primary outline-none"
+              aria-invalid={!!servingsError}
+              className={`w-full px-3 py-2 border rounded-brand-sm text-sm font-medium focus:ring-2 focus:ring-brand-primary/10 focus:border-brand-primary outline-none ${
+                servingsError ? 'border-red-300 bg-red-50/40' : 'border-brand-light-border'
+              }`}
             />
+            {servingsError ? (
+              <p className="mt-1.5 text-[10px] font-semibold text-red-600">{servingsError}</p>
+            ) : (
+              <p className="mt-1.5 text-[10px] font-medium text-slate-400">
+                Bắt buộc nhập số người ăn để hệ thống gợi ý khẩu phần chính xác.
+              </p>
+            )}
           </div>
         </div>
       </div>

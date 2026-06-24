@@ -10,6 +10,7 @@ import { User } from './entities/user.entity';
 import { UserPreference } from './entities/user-preference.entity';
 import { PasswordResetToken } from './entities/password-reset-token.entity';
 import { RecommendationModule } from '../recommendation/recommendation.module';
+import { NotificationModule } from '../notification/notification.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { RecommendationModule } from '../recommendation/recommendation.module';
     PassportModule,
     JwtModule.register({}), // Config is done per-sign in AuthService
     forwardRef(() => RecommendationModule),
+    NotificationModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, PasswordResetService, JwtStrategy],

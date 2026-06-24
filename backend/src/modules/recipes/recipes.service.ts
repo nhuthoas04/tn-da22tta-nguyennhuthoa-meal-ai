@@ -6,7 +6,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { MoreThan, Repository } from 'typeorm';
+import { In, MoreThan, Repository } from 'typeorm';
 import { Recipe } from './entities/recipe.entity';
 import { Favorite } from './entities/favorite.entity';
 import { Ingredient } from './entities/ingredient.entity';
@@ -19,6 +19,12 @@ import { RecipeEditHistory } from './entities/recipe-edit-history.entity';
 import { RecipeModerationAudit } from './entities/recipe-moderation-audit.entity';
 import { NotificationService } from '../notification/notification.service';
 import { EmailService } from '../notification/email.service';
+import {
+  normalizeRecipeForRead,
+  normalizeRecipeIngredients,
+  normalizeRecipeScalarData,
+  normalizeRecipeSteps,
+} from './recipe-normalization.util';
 
 @Injectable()
 export class RecipesService implements OnModuleInit {
@@ -59,6 +65,9 @@ export class RecipesService implements OnModuleInit {
       maxCookingTime?: number;
       minCalories?: number;
       maxCalories?: number;
+      minProtein?: number;
+      difficulty?: string;
+      excludedIngredients?: string[];
       region?: string;
       sort?: string;
       status?: string; // Admin can filter by status
@@ -103,6 +112,32 @@ export class RecipesService implements OnModuleInit {
     }
     if (query.maxCalories) {
       qb.andWhere('recipe.calories <= :maxCal', { maxCal: query.maxCalories });
+    }
+    if (query.minProtein) {
+      qb.andWhere('recipe.protein >= :minProtein', {
+        minProtein: query.minProtein,
+      });
+    }
+    if (query.difficulty) {
+      qb.andWhere('recipe.difficulty = :difficulty', {
+        difficulty: query.difficulty,
+      });
+    }
+    if (query.excludedIngredients?.length) {
+      qb.andWhere(
+        `NOT EXISTS (
+          SELECT 1
+          FROM recipe_ingredients excluded_ri
+          INNER JOIN ingredients excluded_ing ON excluded_ing.id = excluded_ri."ingredientId"
+          WHERE excluded_ri."recipeId" = recipe.id
+            AND LOWER(excluded_ing.name) LIKE ANY(:excludedIngredients)
+        )`,
+        {
+          excludedIngredients: query.excludedIngredients.map(
+            (name) => `%${name.toLowerCase()}%`,
+          ),
+        },
+      );
     }
 
     // Filter by region
@@ -209,6 +244,91 @@ export class RecipesService implements OnModuleInit {
     };
   }
 
+  /** Find real recipes that use one or more named ingredients. */
+  async findByIngredients(
+    ingredients: string[],
+    options?: {
+      limit?: number;
+      mealType?: string;
+      maxCookingTime?: number;
+      maxCalories?: number;
+      minProtein?: number;
+      excludedIngredients?: string[];
+    },
+  ) {
+    const cleaned = ingredients.map((value) => value.trim()).filter(Boolean);
+    if (!cleaned.length) return { data: [], meta: { total: 0 } };
+
+    const qb = this.recipeRepo
+      .createQueryBuilder('recipe')
+      .innerJoin('recipe.recipeIngredients', 'ri')
+      .innerJoin('ri.ingredient', 'ingredient')
+      .select('recipe.id', 'id')
+      .addSelect('COUNT(DISTINCT ingredient.id)', 'matchCount')
+      .where('recipe.isActive = true')
+      .andWhere("recipe.status = 'approved'")
+      .andWhere(
+        cleaned
+          .map((_, index) => `LOWER(ingredient.name) LIKE :ingredient${index}`)
+          .join(' OR '),
+      )
+      .groupBy('recipe.id')
+      .orderBy('COUNT(DISTINCT ingredient.id)', 'DESC')
+      .addOrderBy('recipe.createdAt', 'DESC')
+      .limit(options?.limit || 8);
+
+    cleaned.forEach((value, index) => {
+      qb.setParameter(`ingredient${index}`, `%${value.toLowerCase()}%`);
+    });
+    if (options?.mealType) {
+      qb.andWhere(":mealType = ANY(string_to_array(recipe.mealType, ','))", {
+        mealType: options.mealType,
+      });
+    }
+    if (options?.maxCookingTime) {
+      qb.andWhere('recipe.cookingTime <= :ingredientMaxTime', {
+        ingredientMaxTime: options.maxCookingTime,
+      });
+    }
+    if (options?.maxCalories) {
+      qb.andWhere('recipe.calories <= :ingredientMaxCalories', {
+        ingredientMaxCalories: options.maxCalories,
+      });
+    }
+    if (options?.minProtein) {
+      qb.andWhere('recipe.protein >= :ingredientMinProtein', {
+        ingredientMinProtein: options.minProtein,
+      });
+    }
+    if (options?.excludedIngredients?.length) {
+      qb.andWhere(
+        `NOT EXISTS (
+          SELECT 1
+          FROM recipe_ingredients excluded_ri
+          INNER JOIN ingredients excluded_ing ON excluded_ing.id = excluded_ri."ingredientId"
+          WHERE excluded_ri."recipeId" = recipe.id
+            AND LOWER(excluded_ing.name) LIKE ANY(:ingredientExclusions)
+        )`,
+        {
+          ingredientExclusions: options.excludedIngredients.map(
+            (name) => `%${name.toLowerCase()}%`,
+          ),
+        },
+      );
+    }
+
+    const ranked = await qb.getRawMany<{ id: string; matchCount: string }>();
+    const ids = ranked.map((row) => row.id);
+    if (!ids.length) return { data: [], meta: { total: 0 } };
+
+    const recipes = await this.recipeRepo.find({ where: { id: In(ids) } });
+    const byId = new Map(recipes.map((recipe) => [recipe.id, recipe]));
+    return {
+      data: ids.map((id) => byId.get(id)).filter(Boolean),
+      meta: { total: ids.length, matchedIngredients: cleaned },
+    };
+  }
+
   /**
    * Get full recipe details with ingredients and steps
    */
@@ -253,8 +373,10 @@ export class RecipesService implements OnModuleInit {
       this.getRecipeViewCount(id, recipe.views || 0),
     ]);
 
+    const normalizedRecipe = normalizeRecipeForRead(recipe);
+
     return {
-      ...recipe,
+      ...normalizedRecipe,
       ingredients: recipe.recipeIngredients.map((ri) => ({
         id: ri.ingredient.id,
         name: ri.ingredient.name,
@@ -450,18 +572,22 @@ export class RecipesService implements OnModuleInit {
    * Admin creates a recipe (auto-approved)
    */
   async adminCreate(dto: CreateRecipeDto, adminId: string) {
-    const { ingredients, ...recipeData } = dto;
+    const { ingredients, steps, ...scalarData } = dto;
+    const recipeData = normalizeRecipeScalarData(scalarData);
+    const normalizedSteps = normalizeRecipeSteps(steps);
+    const normalizedIngredients = normalizeRecipeIngredients(ingredients);
 
     const recipe = this.recipeRepo.create({
       ...recipeData,
+      steps: normalizedSteps,
       status: 'approved',
       submittedBy: adminId,
     });
     await this.recipeRepo.save(recipe);
 
     // Link ingredients
-    if (ingredients?.length) {
-      await this.linkIngredients(recipe.id, ingredients);
+    if (normalizedIngredients.length) {
+      await this.linkIngredients(recipe.id, normalizedIngredients);
     }
 
     return { message: 'Recipe created', recipe };
@@ -474,14 +600,20 @@ export class RecipesService implements OnModuleInit {
     const recipe = await this.recipeRepo.findOne({ where: { id } });
     if (!recipe) throw new NotFoundException('Recipe not found');
 
-    const { ingredients, ...recipeData } = dto;
-    Object.assign(recipe, recipeData);
+    const { ingredients, steps, ...scalarData } = dto;
+    const recipeData = normalizeRecipeScalarData(scalarData);
+    const normalizedSteps = normalizeRecipeSteps(steps);
+    const normalizedIngredients = normalizeRecipeIngredients(ingredients);
+
+    Object.assign(recipe, recipeData, { steps: normalizedSteps });
     await this.recipeRepo.save(recipe);
 
     // Re-link ingredients if provided
-    if (ingredients?.length) {
+    if (ingredients !== undefined) {
       await this.riRepo.delete({ recipeId: id });
-      await this.linkIngredients(id, ingredients);
+      if (normalizedIngredients.length) {
+        await this.linkIngredients(id, normalizedIngredients);
+      }
     }
 
     return { message: 'Recipe updated', recipe };
@@ -506,7 +638,7 @@ export class RecipesService implements OnModuleInit {
   async getPending(page = 1, limit = 20) {
     const [data, total] = await this.recipeRepo.findAndCount({
       where: { status: 'pending' },
-      relations: ['submitter'],
+      relations: ['submitter', 'recipeIngredients', 'recipeIngredients.ingredient'],
       order: { createdAt: 'ASC' },
       skip: (page - 1) * limit,
       take: limit,
@@ -517,8 +649,9 @@ export class RecipesService implements OnModuleInit {
         const hasEditHistory = await this.editHistoryRepo.count({
           where: { recipeId: r.id },
         });
+        const normalizedRecipe = normalizeRecipeForRead(r);
         return {
-          ...r,
+          ...normalizedRecipe,
           submitterName: r.submitter?.fullName || 'Unknown',
           submitterEmail: r.submitter?.email || '',
           hasBeenEditedByAdmin: hasEditHistory > 0,
@@ -637,17 +770,21 @@ export class RecipesService implements OnModuleInit {
    * User submits a recipe for admin review (pending status)
    */
   async userSubmit(dto: CreateRecipeDto, userId: string) {
-    const { ingredients, ...recipeData } = dto;
+    const { ingredients, steps, ...scalarData } = dto;
+    const recipeData = normalizeRecipeScalarData(scalarData);
+    const normalizedSteps = normalizeRecipeSteps(steps);
+    const normalizedIngredients = normalizeRecipeIngredients(ingredients);
 
     const recipe = this.recipeRepo.create({
       ...recipeData,
+      steps: normalizedSteps,
       status: 'pending',
       submittedBy: userId,
     });
     await this.recipeRepo.save(recipe);
 
-    if (ingredients?.length) {
-      await this.linkIngredients(recipe.id, ingredients);
+    if (normalizedIngredients.length) {
+      await this.linkIngredients(recipe.id, normalizedIngredients);
     }
 
     return { message: 'Recipe submitted for review', recipe };
@@ -692,7 +829,7 @@ export class RecipesService implements OnModuleInit {
         });
 
         return {
-          ...recipe,
+          ...normalizeRecipeForRead(recipe),
           averageRating: ratingStats.average,
           commentsCount,
           hasBeenEditedByAdmin: hasEditHistory > 0,
@@ -725,17 +862,23 @@ export class RecipesService implements OnModuleInit {
     if (!recipe)
       throw new NotFoundException('Không tìm thấy công thức của bạn');
 
-    const { ingredients, ...recipeData } = dto;
-    Object.assign(recipe, recipeData);
+    const { ingredients, steps, ...scalarData } = dto;
+    const recipeData = normalizeRecipeScalarData(scalarData);
+    const normalizedSteps = normalizeRecipeSteps(steps);
+    const normalizedIngredients = normalizeRecipeIngredients(ingredients);
+
+    Object.assign(recipe, recipeData, { steps: normalizedSteps });
     // Reset status to pending so it goes through moderation again
     recipe.status = 'pending';
     recipe.rejectionReason = null;
     await this.recipeRepo.save(recipe);
 
     // Re-link ingredients if provided
-    if (ingredients?.length) {
+    if (ingredients !== undefined) {
       await this.riRepo.delete({ recipeId });
-      await this.linkIngredients(recipeId, ingredients);
+      if (normalizedIngredients.length) {
+        await this.linkIngredients(recipeId, normalizedIngredients);
+      }
     }
 
     // Clear cached audit so it triggers a new AI audit
@@ -836,8 +979,12 @@ export class RecipesService implements OnModuleInit {
         .join('\n') || 'Không có';
 
     // 2. Perform updates
-    const { ingredients, ...recipeData } = dto;
-    Object.assign(recipe, recipeData);
+    const { ingredients, steps, ...scalarData } = dto;
+    const recipeData = normalizeRecipeScalarData(scalarData);
+    const normalizedSteps = normalizeRecipeSteps(steps);
+    const normalizedIngredients = normalizeRecipeIngredients(ingredients);
+
+    Object.assign(recipe, recipeData, { steps: normalizedSteps });
 
     recipe.status = 'pending';
     recipe.rejectionReason = null;
@@ -846,8 +993,8 @@ export class RecipesService implements OnModuleInit {
     // Re-link ingredients
     if (ingredients !== undefined) {
       await this.riRepo.delete({ recipeId: id });
-      if (ingredients.length > 0) {
-        await this.linkIngredients(id, ingredients);
+      if (normalizedIngredients.length > 0) {
+        await this.linkIngredients(id, normalizedIngredients);
       }
     }
 

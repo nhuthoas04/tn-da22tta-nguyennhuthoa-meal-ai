@@ -8,6 +8,7 @@ import { MealPlanService } from '../meal-plan/meal-plan.service';
 import { ShoppingListService } from '../shopping-list/shopping-list.service';
 import { RecommendationService } from '../recommendation/recommendation.service';
 import { CalorieService } from '../recommendation/calorie.service';
+import { NutritionAnalyzerService } from '../recommendation/nutrition-analyzer.service';
 import { User } from '../auth/entities/user.entity';
 import { UserPreference } from '../auth/entities/user-preference.entity';
 
@@ -23,6 +24,7 @@ export class ChatbotActionHandler {
     private readonly shoppingListService: ShoppingListService,
     private readonly recommendationService: RecommendationService,
     private readonly calorieService: CalorieService,
+    private readonly nutritionAnalyzerService: NutritionAnalyzerService,
     @InjectRepository(User) private readonly userRepo: Repository<User>,
   ) {}
 
@@ -50,6 +52,9 @@ export class ChatbotActionHandler {
             maxCookingTime: args.maxCookingTime,
             minCalories: args.minCalories,
             maxCalories: args.maxCalories,
+            minProtein: args.minProtein,
+            difficulty: args.difficulty,
+            excludedIngredients: args.excludedIngredients,
             region: args.region,
             limit: searchAllergies.length > 0 ? 30 : args.limit || 5,
           });
@@ -85,6 +90,19 @@ export class ChatbotActionHandler {
           }
           return rawResults;
 
+        case 'search_recipes_by_ingredients':
+          return await this.recipesService.findByIngredients(
+            args.ingredients || [],
+            {
+              limit: args.limit || 5,
+              mealType: args.mealType,
+              maxCookingTime: args.maxCookingTime,
+              maxCalories: args.maxCalories,
+              minProtein: args.minProtein,
+              excludedIngredients: args.excludedIngredients,
+            },
+          );
+
         case 'get_recipe_detail':
           return await this.recipesService.findOne(args.recipeId, { userId });
 
@@ -94,8 +112,21 @@ export class ChatbotActionHandler {
             args.mealType || 'lunch',
             args.limit || 5,
             args.useAntiWaste !== false,
-            args.excludeIds,
+            {
+              excludeIds: args.excludeIds,
+              excludeNames: args.excludeNames,
+              currentDayRecipeIds: args.currentDayRecipeIds,
+              prioritizeNew: true,
+              noRepeatIn7Days: true,
+            },
           );
+
+        case 'get_favorites':
+          return await this.recipesService.getFavorites(userId, {
+            page: 1,
+            limit: args.limit || 10,
+            search: args.search,
+          });
 
         case 'get_inventory':
           return await this.inventoryService.findAll(userId);
@@ -201,6 +232,94 @@ export class ChatbotActionHandler {
 
           return result;
 
+        case 'replace_meal_item': {
+          const targetDate = args.mealDate || this.formatDateInput(new Date());
+          const targetWeekStart = this.getMondayString(
+            this.parseDateInput(targetDate),
+          );
+          const targetPlan = await this.mealPlanService.findByWeek(
+            userId,
+            targetWeekStart,
+          );
+          if (!targetPlan) return { error: 'Không tìm thấy thực đơn cần đổi món.' };
+
+          const sameDate = (value: any) =>
+            this.formatDateInput(this.parseDateInput(String(value))) === targetDate;
+          const slotItems = targetPlan.items.filter(
+            (item: any) =>
+              sameDate(item.mealDate) &&
+              (!args.mealType || item.mealType === args.mealType),
+          );
+          const targetItem = args.itemId
+            ? slotItems.find((item: any) => item.id === args.itemId)
+            : args.oldRecipeName
+              ? slotItems.find((item: any) =>
+                  item.recipe?.name
+                    ?.toLowerCase()
+                    .includes(String(args.oldRecipeName).toLowerCase()),
+                )
+              : slotItems[0];
+          if (!targetItem) {
+            return { error: 'Không tìm thấy món phù hợp trong bữa ăn để đổi.' };
+          }
+
+          let replacementId = args.recipeId;
+          let replacementName = args.recipeName;
+          if (!replacementId && replacementName) {
+            const found = await this.recipesService.findAll({
+              search: replacementName,
+              limit: 1,
+              excludedIngredients: args.excludedIngredients,
+            });
+            replacementId = found.data?.[0]?.id;
+            replacementName = found.data?.[0]?.name;
+          }
+          if (!replacementId) {
+            const excludedIds = targetPlan.items
+              .filter((item: any) => sameDate(item.mealDate))
+              .map((item: any) => item.recipeId);
+            const recommendations = await this.recommendationService.getRecommendations(
+              userId,
+              args.mealType || targetItem.mealType,
+              5,
+              args.useAntiWaste !== false,
+              {
+                excludeIds: excludedIds,
+                prioritizeNew: true,
+                noRepeatIn7Days: true,
+              },
+            );
+            const recommendationPayload: any = recommendations;
+            const candidates =
+              recommendationPayload?.recommendations ||
+              recommendationPayload?.data?.recommendations ||
+              recommendationPayload?.data ||
+              [];
+            const recipe = candidates.map((item: any) => item.recipe || item)[0];
+            replacementId = recipe?.id;
+            replacementName = recipe?.name;
+          }
+          if (!replacementId) return { error: 'Chưa tìm được món thay thế phù hợp.' };
+
+          await this.mealPlanService.swapRecipe(
+            userId,
+            targetPlan.id,
+            targetItem.id,
+            replacementId,
+          );
+          const updatedPlan = await this.mealPlanService.findByWeek(
+            userId,
+            targetWeekStart,
+          );
+          return {
+            ...updatedPlan,
+            replacedItemId: targetItem.id,
+            oldRecipeName: targetItem.recipe?.name,
+            newRecipeName: replacementName,
+            message: `Đã đổi món thành ${replacementName || 'món mới'}.`,
+          };
+        }
+
         case 'remove_from_meal_plan':
           let removeMealDate = args.mealDate;
           if (!removeMealDate && args.dayOfWeek) {
@@ -227,18 +346,24 @@ export class ChatbotActionHandler {
           }
           const itemsToRemove = planToRemoveFrom.items.filter(
             (i: any) =>
-              i.mealDate === removeMealDate && i.mealType === args.mealType,
+              this.formatDateInput(this.parseDateInput(String(i.mealDate))) ===
+                removeMealDate &&
+              (!args.mealType || i.mealType === args.mealType),
           );
           if (itemsToRemove.length === 0) {
             return {
               message: `Bữa ăn này hiện đang trống, không có món nào để xóa.`,
             };
           }
-          if (args.recipeId) {
+          if (args.recipeId || args.recipeName) {
             const targetItem = itemsToRemove.find(
               (i: any) =>
                 i.recipeId === args.recipeId ||
-                (i.recipe && i.recipe.id === args.recipeId),
+                (i.recipe && i.recipe.id === args.recipeId) ||
+                (args.recipeName &&
+                  i.recipe?.name
+                    ?.toLowerCase()
+                    .includes(String(args.recipeName).toLowerCase())),
             );
             if (!targetItem) {
               return {
@@ -250,7 +375,12 @@ export class ChatbotActionHandler {
               planToRemoveFrom.id,
               targetItem.id,
             );
+            const updatedPlan = await this.mealPlanService.findByWeek(
+              userId,
+              removeWeekStart,
+            );
             return {
+              ...updatedPlan,
               message: `Đã xóa thành công món ăn "${targetItem.recipe?.name || 'món ăn'}" khỏi bữa ${args.mealType === 'breakfast' ? 'Sáng' : args.mealType === 'lunch' ? 'Trưa' : 'Tối'}!`,
             };
           } else {
@@ -261,7 +391,12 @@ export class ChatbotActionHandler {
                 item.id,
               );
             }
+            const updatedPlan = await this.mealPlanService.findByWeek(
+              userId,
+              removeWeekStart,
+            );
             return {
+              ...updatedPlan,
               message: `Đã xóa thành công tất cả các món ăn khỏi bữa ${args.mealType === 'breakfast' ? 'Sáng' : args.mealType === 'lunch' ? 'Trưa' : 'Tối'}!`,
             };
           }
@@ -280,6 +415,33 @@ export class ChatbotActionHandler {
           }
           await this.mealPlanService.remove(userId, planToDelete.id);
           return { message: 'Đã xóa thực đơn tuần thành công!' };
+
+        case 'remove_meal_day': {
+          const targetDate = args.mealDate || this.formatDateInput(new Date());
+          const weekStart = this.getMondayString(this.parseDateInput(targetDate));
+          const targetPlan = await this.mealPlanService.findByWeek(userId, weekStart);
+          if (!targetPlan) return { message: 'Không có thực đơn để xóa.' };
+          const targets = targetPlan.items.filter((item: any) => {
+            const itemDate = this.formatDateInput(
+              this.parseDateInput(String(item.mealDate)),
+            );
+            return (
+              itemDate === targetDate &&
+              (!args.mealType || item.mealType === args.mealType)
+            );
+          });
+          for (const item of targets) {
+            await this.mealPlanService.removeItem(userId, targetPlan.id, item.id);
+          }
+          const updatedPlan = await this.mealPlanService.findByWeek(userId, weekStart);
+          return {
+            ...updatedPlan,
+            id: targetPlan.id,
+            weekStart,
+            removedCount: targets.length,
+            message: `Đã xóa ${targets.length} món khỏi thực đơn.`,
+          };
+        }
 
         case 'generate_meal_plan_for_days':
           let mealDates = args.mealDates;
@@ -376,6 +538,45 @@ export class ChatbotActionHandler {
               ? `TDEE của bạn là ${tdee} kcal/ngày. Phân bổ hợp lý: Bữa sáng ${mealDist.breakfast} kcal, Bữa trưa ${mealDist.lunch} kcal, Bữa tối ${mealDist.dinner} kcal.`
               : 'Vui lòng cập nhật chiều cao, cân nặng, giới tính và ngày sinh trong trang cá nhân để AI tính toán TDEE chính xác.',
           };
+
+        case 'analyze_meal_plan': {
+          const targetDate = args.mealDate || this.formatDateInput(new Date());
+          const weekStart =
+            args.weekStart ||
+            this.getMondayString(this.parseDateInput(targetDate));
+          const targetPlan = await this.mealPlanService.findByWeek(
+            userId,
+            weekStart,
+          );
+          if (!targetPlan) return { error: 'Chưa có thực đơn để phân tích.' };
+          const nutrition = await this.mealPlanService.getNutrition(
+            userId,
+            targetPlan.id,
+          );
+          const weeklyAnalysis =
+            await this.nutritionAnalyzerService.analyzeWeeklyPlan(
+              userId,
+              weekStart,
+            );
+          const selectedDay =
+            args.period === 'week'
+              ? undefined
+              : nutrition.daily.find((day: any) => {
+                  const date = this.parseDateInput(weekStart);
+                  date.setDate(date.getDate() + Number(day.day) - 1);
+                  return this.formatDateInput(date) === targetDate;
+                });
+          return {
+            planId: targetPlan.id,
+            weekStart,
+            period: args.period || 'day',
+            ...(selectedDay || nutrition.weeklyAvg),
+            totalDishes: selectedDay?.dishCount ?? nutrition.totalDishes,
+            calorieTarget: nutrition.calorieTarget,
+            macroDistribution: nutrition.macroDistribution,
+            insights: weeklyAnalysis,
+          };
+        }
 
         case 'get_recipe_ratings':
           let ratingRecipeId = args.recipeId;

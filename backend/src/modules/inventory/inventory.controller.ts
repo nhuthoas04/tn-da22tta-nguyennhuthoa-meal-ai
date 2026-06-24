@@ -35,6 +35,7 @@ export class InventoryController {
       ingredientId: string;
       quantity: number;
       unit: string;
+      purchaseDate?: string;
       expirationDate?: string;
       notes?: string;
     },
@@ -46,7 +47,13 @@ export class InventoryController {
   update(
     @Request() req,
     @Param('id') id: string,
-    @Body() dto: { quantity?: number; expirationDate?: string },
+    @Body()
+    dto: {
+      quantity?: number;
+      purchaseDate?: string;
+      expirationDate?: string;
+      notes?: string;
+    },
   ) {
     return this.inventoryService.update(req.user.id, id, dto);
   }

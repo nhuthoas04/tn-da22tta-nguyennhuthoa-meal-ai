@@ -32,9 +32,6 @@ export class ForgotPasswordDto {
 }
 
 export class ResetPasswordDto {
-  @IsEmail()
-  email: string;
-
   @IsString()
   @IsNotEmpty()
   token: string;
@@ -42,4 +39,8 @@ export class ResetPasswordDto {
   @IsString()
   @MinLength(6)
   newPassword: string;
+
+  @IsString()
+  @IsNotEmpty()
+  confirmPassword: string;
 }

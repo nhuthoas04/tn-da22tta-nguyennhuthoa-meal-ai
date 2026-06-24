@@ -10,7 +10,11 @@ import {
   ValidateNested,
   IsEnum,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
+import {
+  normalizeRecipeIngredients,
+  normalizeRecipeSteps,
+} from '../recipe-normalization.util';
 
 class StepDto {
   @IsInt()
@@ -37,6 +41,11 @@ class IngredientItemDto {
   @IsOptional()
   isOptional?: boolean;
 }
+
+const toStepDto = (step: StepDto): StepDto => Object.assign(new StepDto(), step);
+
+const toIngredientItemDto = (ingredient: IngredientItemDto): IngredientItemDto =>
+  Object.assign(new IngredientItemDto(), ingredient);
 
 export class CreateRecipeDto {
   @IsString()
@@ -96,6 +105,9 @@ export class CreateRecipeDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => StepDto)
+  @Transform(({ value }) => normalizeRecipeSteps(value).map(toStepDto), {
+    toClassOnly: true,
+  })
   steps: StepDto[];
 
   @IsNumber()
@@ -105,6 +117,9 @@ export class CreateRecipeDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => IngredientItemDto)
+  @Transform(({ value }) => normalizeRecipeIngredients(value).map(toIngredientItemDto), {
+    toClassOnly: true,
+  })
   @IsOptional()
   ingredients?: IngredientItemDto[];
 }

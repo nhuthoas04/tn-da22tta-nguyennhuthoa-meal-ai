@@ -9,12 +9,13 @@ export class EmailService {
   constructor(private readonly configService: ConfigService) {}
 
   async sendMail(to: string, subject: string, html: string) {
-    const host = this.configService.get<string>('MAIL_HOST');
-    const port = this.configService.get<number>('MAIL_PORT') || 587;
-    const userMail = this.configService.get<string>('MAIL_USER');
-    const passMail = this.configService.get<string>('MAIL_PASS');
-    const fromMail =
-      this.configService.get<string>('MAIL_FROM') || 'no-reply@recipe-ai.com';
+    const host = this.configService.get<string>('SMTP_HOST') || this.configService.get<string>('MAIL_HOST');
+    const port = Number(this.configService.get<any>('SMTP_PORT') || this.configService.get<any>('MAIL_PORT') || 587);
+    const smtpSecure = this.configService.get<string>('SMTP_SECURE');
+    const secure = smtpSecure !== undefined ? smtpSecure === 'true' : port === 465;
+    const userMail = this.configService.get<string>('SMTP_USER') || this.configService.get<string>('MAIL_USER');
+    const passMail = this.configService.get<string>('SMTP_PASS') || this.configService.get<string>('MAIL_PASS');
+    const fromMail = this.configService.get<string>('SMTP_USER') || this.configService.get<string>('MAIL_FROM') || 'no-reply@recipe-ai.com';
 
     if (!host || !userMail || !passMail) {
       this.logger.warn(`MAIL CONFIG IS MISSING. FALLBACK TO CONSOLE LOG.`);

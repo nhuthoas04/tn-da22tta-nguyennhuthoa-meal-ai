@@ -4,12 +4,14 @@ import {
   CategoryScale, LinearScale, BarElement,
   ArcElement, Title, Tooltip, Legend, Filler,
 } from 'chart.js';
+import annotationPlugin from 'chartjs-plugin-annotation';
 import { Bar, Pie } from 'react-chartjs-2';
 
 // Register Chart.js components
 ChartJS.register(
   CategoryScale, LinearScale, BarElement,
   ArcElement, Title, Tooltip, Legend, Filler,
+  annotationPlugin,
 );
 
 interface DailyNutrition {
@@ -29,7 +31,6 @@ interface CaloriesBarProps {
 }
 
 export function WeeklyCaloriesChart({ daily, calorieTarget }: CaloriesBarProps) {
-  console.count("Nutrition Chart Render");
   const data = {
     labels: daily.map((d) => d.label),
     datasets: [
@@ -53,24 +54,10 @@ export function WeeklyCaloriesChart({ daily, calorieTarget }: CaloriesBarProps) 
         borderWidth: 2,
         borderRadius: 8,
       },
-      // Target line rendered as a thin constant bar
-      ...(calorieTarget
-        ? [{
-            label: `Mục tiêu (${calorieTarget} kcal)`,
-            data: daily.map(() => calorieTarget),
-            type: 'bar' as const,
-            backgroundColor: 'transparent',
-            borderColor: 'rgba(99, 102, 241, 0.8)',
-            borderWidth: 2,
-            borderDash: [6, 4],
-            borderSkipped: false,
-            barPercentage: 0,
-          }]
-        : []),
     ],
   };
 
-  const options = {
+  const options: any = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
@@ -83,6 +70,28 @@ export function WeeklyCaloriesChart({ daily, calorieTarget }: CaloriesBarProps) 
           label: (ctx: any) => `${ctx.dataset.label}: ${ctx.raw} kcal`,
         },
       },
+      annotation: calorieTarget ? {
+        annotations: {
+          targetLine: {
+            type: 'line',
+            yMin: calorieTarget,
+            yMax: calorieTarget,
+            borderColor: 'rgba(99, 102, 241, 0.8)',
+            borderWidth: 2,
+            borderDash: [6, 4],
+            label: {
+              display: true,
+              content: `Mục tiêu: ${calorieTarget} kcal`,
+              position: 'end',
+              backgroundColor: 'rgba(99, 102, 241, 0.85)',
+              color: '#fff',
+              font: { size: 11, weight: 'bold' },
+              padding: { top: 3, bottom: 3, left: 6, right: 6 },
+              borderRadius: 4,
+            },
+          },
+        },
+      } : undefined,
     },
     scales: {
       y: {
@@ -108,7 +117,6 @@ interface MacroPieProps {
 }
 
 export function MacroDistributionChart({ protein, carbs, fat }: MacroPieProps) {
-  console.count("Nutrition Chart Render");
   // Calculate calorie contribution: Protein/Carbs = 4 cal/g, Fat = 9 cal/g
   const proteinCal = protein * 4;
   const carbsCal = carbs * 4;
@@ -167,7 +175,6 @@ interface DailyMacroProps {
 }
 
 export function DailyMacroChart({ daily }: DailyMacroProps) {
-  console.count("Nutrition Chart Render");
   const data = {
     labels: daily.map((d) => d.label),
     datasets: [
@@ -222,10 +229,11 @@ interface NutrientByDayProps {
   nutrient: 'protein' | 'carbs' | 'fat';
   label: string;
   color: string;
+  targetLine?: number;
+  targetLabel?: string;
 }
 
-export function NutrientByDayChart({ daily, nutrient, label, color }: NutrientByDayProps) {
-  console.count("Nutrition Chart Render");
+export function NutrientByDayChart({ daily, nutrient, label, color, targetLine, targetLabel }: NutrientByDayProps) {
   const data = {
     labels: daily.map((d) => d.label),
     datasets: [
@@ -240,7 +248,7 @@ export function NutrientByDayChart({ daily, nutrient, label, color }: NutrientBy
     ],
   };
 
-  const options = {
+  const options: any = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
@@ -252,6 +260,28 @@ export function NutrientByDayChart({ daily, nutrient, label, color }: NutrientBy
           label: (ctx: any) => `${label}: ${ctx.raw}g`,
         },
       },
+      annotation: targetLine ? {
+        annotations: {
+          target: {
+            type: 'line',
+            yMin: targetLine,
+            yMax: targetLine,
+            borderColor: 'rgba(99, 102, 241, 0.7)',
+            borderWidth: 2,
+            borderDash: [6, 4],
+            label: {
+              display: true,
+              content: targetLabel || `Mục tiêu: ${targetLine}g`,
+              position: 'end',
+              backgroundColor: 'rgba(99, 102, 241, 0.85)',
+              color: '#fff',
+              font: { size: 10, weight: 'bold' },
+              padding: { top: 2, bottom: 2, left: 5, right: 5 },
+              borderRadius: 4,
+            },
+          },
+        },
+      } : undefined,
     },
     scales: {
       y: {

@@ -25,6 +25,10 @@ export class ChatbotAIService implements OnModuleInit {
     private readonly actionLogRepo: Repository<UserActionLog>,
   ) {}
 
+  isAIAvailable(): boolean {
+    return this.genAI !== null;
+  }
+
   onModuleInit() {
     const apiKey = this.configService.get<string>('GEMINI_API_KEY');
     const isPlaceholder =
@@ -523,7 +527,17 @@ export class ChatbotAIService implements OnModuleInit {
     const fullName = user?.fullName || 'Người dùng';
     const allergies = user?.preferences?.allergies || [];
     const dietType = user?.preferences?.dietType || 'Bình thường';
-    const servings = user?.preferences?.servings || 4;
+    const savedServings = Number(user?.preferences?.servings);
+    const servings = Number.isInteger(savedServings) && savedServings >= 1 && savedServings <= 20
+      ? savedServings
+      : null;
+    const servingsLabel = servings ? `${servings} người` : 'chưa cập nhật';
+    const servingsRule = servings
+      ? `   - Khi gợi ý món ăn, cung cấp công thức hoặc liệt kê nguyên liệu chi tiết, bạn PHẢI dựa vào thông tin "Khẩu phần ăn (Số người ăn)" của người dùng (${servings} người) để tính toán, nhân/chia và hiển thị định lượng nguyên liệu chính xác, đủ cho số lượng người đó.`
+      : '   - Hồ sơ người dùng chưa có số người ăn. Nếu người dùng yêu cầu gợi ý khẩu phần, lập thực đơn hoặc tính nguyên liệu, hãy yêu cầu họ cập nhật số người ăn trong hồ sơ trước.';
+    const servingsNote = servings
+      ? `   - Hãy ghi chú rõ trong câu trả lời: "Định lượng nguyên liệu dưới đây đã được tự động quy đổi cho ${servings} người theo hồ sơ của bạn."`
+      : '   - Không tự giả định khẩu phần mặc định 4 người khi hồ sơ chưa có số người ăn.';
     const todayValue = this.formatDateInput(new Date());
     const currentWeekStart = this.getMondayString(new Date());
 
@@ -577,7 +591,7 @@ THÔNG TIN NGƯỜI DÙNG HIỆN TẠI:
 - Tên: ${fullName}
 - Dị ứng thực phẩm: ${allergies.length > 0 ? allergies.join(', ') : 'Không có'}
 - Chế độ ăn: ${dietType}
-- Khẩu phần ăn (Số người ăn): ${servings} người
+- Khẩu phần ăn (Số người ăn): ${servingsLabel}
 - Hôm nay: ${todayValue}
 - Tuần hiện tại bắt đầu vào: ${currentWeekStart}
 
@@ -594,8 +608,8 @@ QUY TẮC RẤT QUAN TRỌNG:
    - Tuyệt đối không được gợi ý hay thiết kế thực đơn chứa các nguyên liệu mà người dùng bị dị ứng (${allergies.join(', ')}).
    - Nếu người dùng hỏi xin công thức hoặc hỏi xem có ăn được món ăn chứa chất dị ứng của họ hay không, bạn PHẦI cảnh báo khẩn cấp bằng biểu tượng ⚠️ và giải thích chi tiết chất gây dị ứng trong món đó để bảo vệ an toàn cho họ.
 7. QUY TẮC KHẨU PHẦN ĂN (SỐ NGƯỜI ĂN) & SỐ LƯỢNG MÓN ĂN:
-   - Khi gợi ý món ăn, cung cấp công thức hoặc liệt kê nguyên liệu chi tiết, bạn PHẦI dựa vào thông tin "Khẩu phần ăn (Số người ăn)" của người dùng (${servings} người) để tính toán, nhân/chia và hiển thị định lượng nguyên liệu chính xác, đủ cho số lượng người đó.
-   - Hãy ghi chú rõ trong câu trả lời: "Định lượng nguyên liệu dưới đây đã được tự động quy đổi cho ${servings} người theo hồ sơ của bạn."
+${servingsRule}
+${servingsNote}
    - Khi thiết kế mâm cơm cho bữa trưa (lunch) hoặc bữa tối (dinner), hãy cân nhắc quy mô gia đình của họ:
      - Gia đình từ 1-2 người ăn: Chỉ gợi ý 1 món ăn đơn giản/bữa.
      - Gia đình từ 3-5 người ăn: Gợi ý mâm cơm 2 món gồm 1 món chính (thịt/cá/tôm/đậu...) + 1 món canh hoặc rau xào.

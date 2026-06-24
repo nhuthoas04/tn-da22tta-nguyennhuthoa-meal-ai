@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -12,8 +12,8 @@ import RecipeImage from '@/components/RecipeImage';
 const MEAL_OPTIONS = [
   {
     key: 'breakfast',
-    label: 'Sáng',
-    icon: '☕',
+    label: 'SÃ¡ng',
+    icon: 'â˜•',
     bg: 'bg-orange-50',
     border: 'border-orange-200',
     text: 'text-orange-600',
@@ -21,8 +21,8 @@ const MEAL_OPTIONS = [
   },
   {
     key: 'lunch',
-    label: 'Trưa',
-    icon: '☀️',
+    label: 'TrÆ°a',
+    icon: 'â˜€ï¸',
     bg: 'bg-yellow-50',
     border: 'border-yellow-200',
     text: 'text-yellow-600',
@@ -30,8 +30,8 @@ const MEAL_OPTIONS = [
   },
   {
     key: 'dinner',
-    label: 'Tối',
-    icon: '🌙',
+    label: 'Tá»‘i',
+    icon: 'ðŸŒ™',
     bg: 'bg-blue-50',
     border: 'border-blue-200',
     text: 'text-blue-600',
@@ -54,6 +54,12 @@ export default function RecipeDetailPage() {
   const [selectedMeal, setSelectedMeal] = useState('breakfast');
   const [submitting, setSubmitting] = useState(false);
 
+  useEffect(() => {
+    if (planSelectorOpen && selectedDate) {
+      setSelectedMeal(getFirstAvailableMeal(selectedDate));
+    }
+  }, [selectedDate, planSelectorOpen]);
+
   // Ratings state
   const [ratings, setRatings] = useState<any[]>([]);
   const [totalRatings, setTotalRatings] = useState(0);
@@ -74,20 +80,20 @@ export default function RecipeDetailPage() {
       const storageKey = user ? `recently-viewed-${user.id}` : 'recently-viewed-guest';
       const rawData = localStorage.getItem(storageKey);
       let list: any[] = rawData ? JSON.parse(rawData) : [];
-      
+
       list = list.filter((item: any) => item.id !== rec.id);
-      
+
       list.unshift({
         id: rec.id,
         name: rec.name,
         imageUrl: rec.imageUrl,
         viewedAt: new Date().toISOString(),
       });
-      
+
       if (list.length > 20) {
         list = list.slice(0, 20);
       }
-      
+
       localStorage.setItem(storageKey, JSON.stringify(list));
     } catch (err) {
       console.error('Error saving to recently viewed:', err);
@@ -106,7 +112,7 @@ export default function RecipeDetailPage() {
       setIsFav(Boolean(nextRecipe.isFavorite ?? nextRecipe.isFavorited));
       const profileServings = (user as any)?.preferences?.servings;
       setServings(profileServings || nextRecipe.servings || 4);
-      
+
       // Save recipe to recently viewed list
       saveToRecentlyViewed(nextRecipe);
     } catch (err: any) {
@@ -116,7 +122,7 @@ export default function RecipeDetailPage() {
         data: err.response?.data,
         message: err.message,
       });
-      toast.error(err.response?.data?.message || 'Không tìm thấy công thức');
+      toast.error(err.response?.data?.message || 'KhÃ´ng tÃ¬m tháº¥y cÃ´ng thá»©c');
     }
   };
 
@@ -144,7 +150,7 @@ export default function RecipeDetailPage() {
   const handleRatingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) {
-      toast.error('Vui lòng đăng nhập để gửi đánh giá');
+      toast.error('Vui lÃ²ng Ä‘Äƒng nháº­p Ä‘á»ƒ gá»­i Ä‘Ã¡nh giÃ¡');
       return;
     }
     setSubmittingRating(true);
@@ -153,13 +159,13 @@ export default function RecipeDetailPage() {
         rating: userRating,
         review: userReview,
       });
-      toast.success('Đã gửi đánh giá thành công!');
+      toast.success('ÄÃ£ gá»­i Ä‘Ã¡nh giÃ¡ thÃ nh cÃ´ng!');
       setUserReview('');
       setUserRating(5);
       await Promise.all([loadRecipeDetails(), loadRatings()]);
     } catch (err: any) {
       console.error(err);
-      toast.error(err.response?.data?.message || 'Có lỗi xảy ra khi gửi đánh giá');
+      toast.error(err.response?.data?.message || 'CÃ³ lá»—i xáº£y ra khi gá»­i Ä‘Ã¡nh giÃ¡');
     } finally {
       setSubmittingRating(false);
     }
@@ -177,35 +183,35 @@ export default function RecipeDetailPage() {
         rating: editingScore,
         review: editingText,
       });
-      toast.success('Đã cập nhật đánh giá thành công!');
+      toast.success('ÄÃ£ cáº­p nháº­t Ä‘Ã¡nh giÃ¡ thÃ nh cÃ´ng!');
       setEditingRatingId(null);
       await Promise.all([loadRecipeDetails(), loadRatings()]);
     } catch (err: any) {
       console.error(err);
-      toast.error(err.response?.data?.message || 'Có lỗi xảy ra khi cập nhật');
+      toast.error(err.response?.data?.message || 'CÃ³ lá»—i xáº£y ra khi cáº­p nháº­t');
     }
   };
 
   const handleDeleteRating = async (ratingId: string) => {
-    if (!confirm('Bạn có chắc chắn muốn xóa đánh giá này không?')) return;
+    if (!confirm('Báº¡n cÃ³ cháº¯c cháº¯n muá»‘n xÃ³a Ä‘Ã¡nh giÃ¡ nÃ y khÃ´ng?')) return;
     try {
       await recipesAPI.deleteRating(recipe.id, ratingId);
-      toast.success('Đã xóa đánh giá thành công!');
+      toast.success('ÄÃ£ xÃ³a Ä‘Ã¡nh giÃ¡ thÃ nh cÃ´ng!');
       await Promise.all([loadRecipeDetails(), loadRatings()]);
     } catch (err: any) {
       console.error(err);
-      toast.error(err.response?.data?.message || 'Có lỗi xảy ra khi xóa đánh giá');
+      toast.error(err.response?.data?.message || 'CÃ³ lá»—i xáº£y ra khi xÃ³a Ä‘Ã¡nh giÃ¡');
     }
   };
 
   const toggleFav = async () => {
     if (!user) {
-      toast.error('Vui lòng đăng nhập');
+      toast.error('Vui lÃ²ng Ä‘Äƒng nháº­p');
       return;
     }
 
     if (!recipe?.id) {
-      toast.error('Không xác định được công thức cần yêu thích');
+      toast.error('KhÃ´ng xÃ¡c Ä‘á»‹nh Ä‘Æ°á»£c cÃ´ng thá»©c cáº§n yÃªu thÃ­ch');
       return;
     }
 
@@ -234,7 +240,7 @@ export default function RecipeDetailPage() {
 
     setFavoriteSubmitting(true);
     try {
-      const res = isFav 
+      const res = isFav
         ? await favoritesAPI.remove(recipe.id)
         : await favoritesAPI.add(recipe.id);
       const nextIsFavorite = Boolean(res.data.isFavorite ?? res.data.isFavorited);
@@ -261,7 +267,7 @@ export default function RecipeDetailPage() {
         tokenExists,
         expectedRequest: favoriteRequest,
       });
-      toast.error(err.response?.data?.message || err.message || 'Không thể cập nhật yêu thích');
+      toast.error(err.response?.data?.message || err.message || 'KhÃ´ng thá»ƒ cáº­p nháº­t yÃªu thÃ­ch');
     } finally {
       setFavoriteSubmitting(false);
     }
@@ -269,23 +275,23 @@ export default function RecipeDetailPage() {
 
   const handleReplySubmit = async (parentId: string) => {
     if (!user) {
-      toast.error('Vui lòng đăng nhập để gửi phản hồi');
+      toast.error('Vui lÃ²ng Ä‘Äƒng nháº­p Ä‘á»ƒ gá»­i pháº£n há»“i');
       return;
     }
     if (!replyText.trim()) {
-      toast.error('Nội dung phản hồi không được để trống');
+      toast.error('Ná»™i dung pháº£n há»“i khÃ´ng Ä‘Æ°á»£c Ä‘á»ƒ trá»‘ng');
       return;
     }
     setSubmittingReply(true);
     try {
       await recipesAPI.createReply(recipe.id, parentId, { review: replyText });
-      toast.success('Đã gửi phản hồi thành công!');
+      toast.success('ÄÃ£ gá»­i pháº£n há»“i thÃ nh cÃ´ng!');
       setReplyText('');
       setReplyingRatingId(null);
       await loadRatings();
     } catch (err: any) {
       console.error(err);
-      toast.error(err.response?.data?.message || 'Có lỗi xảy ra khi gửi phản hồi');
+      toast.error(err.response?.data?.message || 'CÃ³ lá»—i xáº£y ra khi gá»­i pháº£n há»“i');
     } finally {
       setSubmittingReply(false);
     }
@@ -293,23 +299,31 @@ export default function RecipeDetailPage() {
 
   const openPlanSelector = () => {
     if (!user) {
-      toast.error('Vui lòng đăng nhập để thêm vào thực đơn');
+      toast.error('Vui lÃ²ng Ä‘Äƒng nháº­p Ä‘á»ƒ thÃªm vÃ o thá»±c Ä‘Æ¡n');
       return;
     }
-    if (selectedDate < getTodayInputValue()) {
-      setSelectedDate(getTodayInputValue());
+    let defaultDate = getTodayInputValue();
+    if (selectedDate < defaultDate) {
+      setSelectedDate(defaultDate);
+    } else {
+      defaultDate = selectedDate;
     }
+    setSelectedMeal(getFirstAvailableMeal(defaultDate));
     setPlanSelectorOpen(true);
   };
 
   const handleAddToPlan = async () => {
     if (!user) {
-      toast.error('Vui lòng đăng nhập để thực hiện');
+      toast.error('Vui lÃ²ng Ä‘Äƒng nháº­p Ä‘á»ƒ thá»±c hiá»‡n');
       return;
     }
     if (selectedDate < getTodayInputValue()) {
-      toast.error('Không thể thêm món vào ngày đã qua');
+      toast.error('KhÃ´ng thá»ƒ thÃªm mÃ³n vÃ o ngÃ y Ä‘Ã£ qua');
       setSelectedDate(getTodayInputValue());
+      return;
+    }
+    if (isPastMealSlot(selectedDate, selectedMeal)) {
+      toast.error('Bá»¯a Äƒn nÃ y Ä‘Ã£ qua, khÃ´ng thá»ƒ thÃªm mÃ³n Äƒn ná»¯a.');
       return;
     }
 
@@ -324,7 +338,7 @@ export default function RecipeDetailPage() {
         mealType: selectedMeal,
         recipeId: recipe.id,
       });
-      toast.success(`Đã thêm "${recipe.name}" vào thực đơn thành công!`);
+      toast.success(`ÄÃ£ thÃªm "${recipe.name}" vÃ o thá»±c Ä‘Æ¡n thÃ nh cÃ´ng!`);
       setPlanSelectorOpen(false);
       const params = new URLSearchParams({
         weekStart: targetWeekStart,
@@ -334,7 +348,7 @@ export default function RecipeDetailPage() {
       router.push(`/meal-planner?${params.toString()}`);
     } catch (err) {
       console.error(err);
-      toast.error('Không thể thêm món ăn vào thực đơn');
+      toast.error('KhÃ´ng thá»ƒ thÃªm mÃ³n Äƒn vÃ o thá»±c Ä‘Æ¡n');
     } finally {
       setSubmitting(false);
     }
@@ -354,14 +368,14 @@ export default function RecipeDetailPage() {
     );
   }
 
-  if (!recipe) return <div className="text-center py-20 text-gray-500">Không tìm thấy</div>;
+  if (!recipe) return <div className="text-center py-20 text-gray-500">KhÃ´ng tÃ¬m tháº¥y</div>;
 
   const todayValue = formatDateInput(new Date());
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 px-4 py-6 bg-brand-light-bg min-h-screen">
       <Link href="/recipes" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-brand-primary font-semibold transition-all">
-        <HiArrowLeft /> Trở lại danh sách
+        <HiArrowLeft /> Trá»Ÿ láº¡i danh sÃ¡ch
       </Link>
 
       <div className="bg-white border border-brand-light-border rounded-brand-lg overflow-hidden shadow-brand-md transition-all duration-300">
@@ -390,11 +404,11 @@ export default function RecipeDetailPage() {
                     ))}
                   </div>
                   <span className="text-slate-700 ml-1">
-                    {Number(recipe.averageRating || 0).toFixed(1)} ({recipe.totalRatings} đánh giá)
+                    {Number(recipe.averageRating || 0).toFixed(1)} ({recipe.totalRatings} Ä‘Ã¡nh giÃ¡)
                   </span>
                 </div>
               ) : (
-                <p className="text-xs text-slate-400 mt-2 font-medium">Chưa có đánh giá nào</p>
+                <p className="text-xs text-slate-400 mt-2 font-medium">ChÆ°a cÃ³ Ä‘Ã¡nh giÃ¡ nÃ o</p>
               )}
             </div>
             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
@@ -403,35 +417,35 @@ export default function RecipeDetailPage() {
                 className="btn-primary w-full sm:w-auto justify-center"
               >
                 <HiCalendar className="text-base" />
-                Thêm vào thực đơn
+                ThÃªm vÃ o thá»±c Ä‘Æ¡n
               </button>
               <button
                 onClick={toggleFav}
                 disabled={favoriteSubmitting}
                 className={`inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-brand-sm border font-semibold text-sm transition-all cursor-pointer w-full sm:w-auto ${
-                  isFav 
-                    ? 'bg-red-50 border-brand-danger/30 text-brand-danger shadow-brand-sm' 
+                  isFav
+                    ? 'bg-red-50 border-brand-danger/30 text-brand-danger shadow-brand-sm'
                     : 'bg-slate-50 border-brand-light-border text-slate-600 hover:text-brand-danger hover:bg-red-50/30'
                 } ${favoriteSubmitting ? 'opacity-70 cursor-not-allowed' : ''}`}
-                aria-label="Yêu thích"
+                aria-label="YÃªu thÃ­ch"
               >
                 {isFav ? <HiHeart className="text-xl" /> : <HiOutlineHeart className="text-xl" />}
-                <span>{isFav ? 'Đã yêu thích' : 'Yêu thích'}</span>
+                <span>{isFav ? 'ÄÃ£ yÃªu thÃ­ch' : 'YÃªu thÃ­ch'}</span>
               </button>
             </div>
           </div>
 
           <div className="flex flex-wrap gap-4 mt-4">
             <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-brand-sm text-sm border border-brand-light-border text-slate-650 font-semibold shadow-brand-sm">
-              <HiClock className="text-brand-primary" /> {recipe.cookingTime} phút
+              <HiClock className="text-brand-primary" /> {recipe.cookingTime} phÃºt
             </div>
             <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-brand-sm text-sm border border-brand-light-border text-slate-650 font-semibold shadow-brand-sm">
               <HiFire className="text-brand-warning" /> {recipe.calories} kcal
             </div>
             <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-brand-sm text-sm border border-brand-light-border text-slate-650 shadow-brand-sm">
               <HiUsers className="text-brand-secondary animate-pulse" />
-              <span className="font-bold">Khẩu phần:</span>
-              <button 
+              <span className="font-bold">Kháº©u pháº§n:</span>
+              <button
                 type="button"
                 onClick={() => setServings(prev => Math.max(1, prev - 1))}
                 className="w-6 h-6 flex items-center justify-center bg-white hover:bg-slate-100 border border-brand-light-border rounded-brand-sm font-bold text-xs transition cursor-pointer"
@@ -439,18 +453,18 @@ export default function RecipeDetailPage() {
                 -
               </button>
               <span className="font-bold text-slate-800 w-4 text-center">{servings}</span>
-              <button 
+              <button
                 type="button"
                 onClick={() => setServings(prev => Math.min(20, prev + 1))}
                 className="w-6 h-6 flex items-center justify-center bg-white hover:bg-slate-100 border border-brand-light-border rounded-brand-sm font-bold text-xs transition cursor-pointer"
               >
                 +
               </button>
-              <span className="text-xs text-slate-400 font-medium">người</span>
+              <span className="text-xs text-slate-400 font-medium">ngÆ°á»i</span>
             </div>
             {recipe.cuisineRegion && (
               <span className="px-3 py-2 bg-brand-primary/10 text-brand-primary border border-brand-primary/20 rounded-brand-sm text-sm font-bold shadow-brand-sm">
-                📍 {recipe.cuisineRegion}
+                ðŸ“ {recipe.cuisineRegion}
               </span>
             )}
           </div>
@@ -459,7 +473,7 @@ export default function RecipeDetailPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="card-dashboard bg-white">
-          <h2 className="font-bold text-slate-900 text-base mb-4">Dinh dưỡng</h2>
+          <h2 className="font-bold text-slate-900 text-base mb-4">Dinh dÆ°á»¡ng</h2>
           <div className="space-y-3">
             {[
               { label: 'Calories', value: `${recipe.calories || 0} kcal`, color: 'bg-brand-warning', pct: Math.min(100, ((Number(recipe.calories) || 0) / 800) * 100) },
@@ -482,9 +496,9 @@ export default function RecipeDetailPage() {
 
         <div className="card-dashboard bg-white">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="font-bold text-slate-900 text-base">Nguyên liệu</h2>
+            <h2 className="font-bold text-slate-900 text-base">NguyÃªn liá»‡u</h2>
             <span className="text-xs font-bold text-brand-primary bg-brand-primary/10 border border-brand-primary/20 px-2.5 py-1 rounded-brand-sm">
-              Quy đổi cho {servings} người
+              Quy Ä‘á»•i cho {servings} ngÆ°á»i
             </span>
           </div>
           <ul className="space-y-2 divide-y divide-slate-100">
@@ -492,7 +506,7 @@ export default function RecipeDetailPage() {
               const baseServings = Number(recipe.servings) || 4;
               const scale = servings / (baseServings > 0 ? baseServings : 4);
               const originalQty = Number(ing.quantity);
-              
+
               let displayQty = '';
               if (!isNaN(originalQty) && originalQty > 0) {
                 const scaledQty = originalQty * scale;
@@ -512,7 +526,7 @@ export default function RecipeDetailPage() {
         </div>
 
         <div className="card-dashboard bg-white lg:col-span-1">
-          <h2 className="font-bold text-slate-900 text-base mb-4">Cách nấu</h2>
+          <h2 className="font-bold text-slate-900 text-base mb-4">CÃ¡ch náº¥u</h2>
           <ol className="space-y-3">
             {(Array.isArray(recipe.steps) ? recipe.steps : []).map((step: any, i: number) => (
               <li key={i} className="flex gap-3">
@@ -526,11 +540,11 @@ export default function RecipeDetailPage() {
         </div>
       </div>
 
-      {/* Đánh giá & Bình luận */}
+      {/* ÄÃ¡nh giÃ¡ & BÃ¬nh luáº­n */}
       <div className="card-dashboard bg-white space-y-6">
         <div className="flex items-center justify-between border-b border-brand-light-border pb-4">
           <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-            ⭐ Đánh Giá & Bình Luận ({totalRatings})
+            â­ ÄÃ¡nh GiÃ¡ & BÃ¬nh Luáº­n ({totalRatings})
           </h2>
           {Number(recipe.averageRating) > 0 && (
             <div className="flex items-center gap-1 text-amber-500 font-bold text-lg">
@@ -540,12 +554,12 @@ export default function RecipeDetailPage() {
           )}
         </div>
 
-        {/* Form viết đánh giá */}
+        {/* Form viáº¿t Ä‘Ã¡nh giÃ¡ */}
         {user ? (
           <form onSubmit={handleRatingSubmit} className="space-y-4 bg-slate-50 border border-brand-light-border rounded-brand-md p-4">
-            <h3 className="font-bold text-slate-800 text-sm">Viết đánh giá của bạn</h3>
+            <h3 className="font-bold text-slate-800 text-sm">Viáº¿t Ä‘Ã¡nh giÃ¡ cá»§a báº¡n</h3>
             <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-500 font-bold mr-2">Đánh giá:</span>
+              <span className="text-xs text-slate-500 font-bold mr-2">ÄÃ¡nh giÃ¡:</span>
               <div className="flex items-center gap-1">
                 {[1, 2, 3, 4, 5].map((star) => (
                   <button
@@ -563,7 +577,7 @@ export default function RecipeDetailPage() {
                 ))}
               </div>
               <span className="text-xs text-amber-600 font-bold ml-2">
-                {userRating === 5 ? 'Tuyệt vời!' : userRating === 4 ? 'Rất ngon' : userRating === 3 ? 'Bình thường' : userRating === 2 ? 'Tạm ổn' : 'Không thích'}
+                {userRating === 5 ? 'Tuyá»‡t vá»i!' : userRating === 4 ? 'Ráº¥t ngon' : userRating === 3 ? 'BÃ¬nh thÆ°á»ng' : userRating === 2 ? 'Táº¡m á»•n' : 'KhÃ´ng thÃ­ch'}
               </span>
             </div>
 
@@ -571,7 +585,7 @@ export default function RecipeDetailPage() {
               <textarea
                 value={userReview}
                 onChange={(e) => setUserReview(e.target.value)}
-                placeholder="Chia sẻ cảm nhận của bạn về món ăn này (hương vị, độ khó, lưu ý khi nấu...)"
+                placeholder="Chia sáº» cáº£m nháº­n cá»§a báº¡n vá» mÃ³n Äƒn nÃ y (hÆ°Æ¡ng vá»‹, Ä‘á»™ khÃ³, lÆ°u Ã½ khi náº¥u...)"
                 rows={3}
                 className="w-full text-sm rounded-brand-sm border border-brand-light-border p-3 shadow-brand-sm outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/10 placeholder-slate-400 bg-white"
               />
@@ -583,19 +597,19 @@ export default function RecipeDetailPage() {
                 disabled={submittingRating}
                 className="btn-primary"
               >
-                {submittingRating ? 'Đang gửi...' : 'Gửi Đánh Giá'}
+                {submittingRating ? 'Äang gá»­i...' : 'Gá»­i ÄÃ¡nh GiÃ¡'}
               </button>
             </div>
           </form>
         ) : (
           <div className="text-center py-6 bg-slate-50 border border-dashed border-brand-light-border rounded-brand-md">
-            <p className="text-sm text-slate-500">Vui lòng đăng nhập để đánh giá món ăn này.</p>
+            <p className="text-sm text-slate-500">Vui lÃ²ng Ä‘Äƒng nháº­p Ä‘á»ƒ Ä‘Ã¡nh giÃ¡ mÃ³n Äƒn nÃ y.</p>
           </div>
         )}
 
         <div className="space-y-4 divide-y divide-brand-light-border">
           {ratings.length === 0 ? (
-            <p className="text-center text-sm text-slate-400 py-6">Chưa có bình luận nào cho món ăn này. Hãy là người đầu tiên chia sẻ cảm nhận!</p>
+            <p className="text-center text-sm text-slate-400 py-6">ChÆ°a cÃ³ bÃ¬nh luáº­n nÃ o cho mÃ³n Äƒn nÃ y. HÃ£y lÃ  ngÆ°á»i Ä‘áº§u tiÃªn chia sáº» cáº£m nháº­n!</p>
           ) : (
             ratings.map((r) => {
               const isOwner = user && r.user?.id === user.id;
@@ -614,7 +628,7 @@ export default function RecipeDetailPage() {
                         )}
                       </div>
                       <div>
-                        <h4 className="font-semibold text-slate-900 text-sm">{r.user?.fullName || 'Người dùng ẩn danh'}</h4>
+                        <h4 className="font-semibold text-slate-900 text-sm">{r.user?.fullName || 'NgÆ°á»i dÃ¹ng áº©n danh'}</h4>
                         <div className="flex items-center gap-2 mt-0.5">
                           <div className="flex">
                             {Array.from({ length: 5 }).map((_, idx) => (
@@ -631,7 +645,7 @@ export default function RecipeDetailPage() {
                           </span>
                           {r.moderationStatus === 'pending' && (
                             <span className="px-1.5 py-0.5 rounded-brand-sm text-[9px] bg-brand-warning/10 text-brand-warning font-bold border border-brand-warning/20 animate-pulse">
-                              Đang chờ duyệt
+                              Äang chá» duyá»‡t
                             </span>
                           )}
                         </div>
@@ -649,7 +663,7 @@ export default function RecipeDetailPage() {
                             }}
                             className="text-slate-500 hover:text-brand-primary transition font-bold cursor-pointer"
                           >
-                            {replyingRatingId === r.id ? 'Hủy' : 'Trả lời'}
+                            {replyingRatingId === r.id ? 'Há»§y' : 'Tráº£ lá»i'}
                           </button>
                         )}
                         {(isOwner || isAdmin) && (
@@ -659,14 +673,14 @@ export default function RecipeDetailPage() {
                                 onClick={() => startEditing(r)}
                                 className="text-slate-500 hover:text-brand-primary transition font-bold cursor-pointer"
                               >
-                                Sửa
+                                Sá»­a
                               </button>
                             )}
                             <button
                               onClick={() => handleDeleteRating(r.id)}
                               className="text-brand-danger hover:text-red-600 transition font-bold cursor-pointer"
                             >
-                              Xóa
+                              XÃ³a
                             </button>
                           </>
                         )}
@@ -677,7 +691,7 @@ export default function RecipeDetailPage() {
                   {isEditing ? (
                     <div className="mt-2 space-y-2 bg-slate-50 p-3 rounded-brand-sm border border-brand-light-border">
                       <div className="flex items-center gap-1.5 mb-1.5">
-                        <span className="text-xs text-slate-500 font-bold">Đánh giá lại:</span>
+                        <span className="text-xs text-slate-500 font-bold">ÄÃ¡nh giÃ¡ láº¡i:</span>
                         {[1, 2, 3, 4, 5].map((star) => (
                           <button
                             key={star}
@@ -704,30 +718,30 @@ export default function RecipeDetailPage() {
                           onClick={() => setEditingRatingId(null)}
                           className="px-2.5 py-1 text-xs border border-brand-light-border rounded-brand-sm hover:bg-slate-100 transition-all font-bold text-slate-650 cursor-pointer"
                         >
-                          Hủy
+                          Há»§y
                         </button>
                         <button
                           onClick={() => handleUpdateRating(r.id)}
                           className="px-2.5 py-1 text-xs bg-brand-primary text-white rounded-brand-sm hover:bg-brand-primary-hover transition-all font-bold cursor-pointer"
                         >
-                          Lưu
+                          LÆ°u
                         </button>
                       </div>
                     </div>
                   ) : (
                     <p className="text-slate-700 text-sm pl-12 whitespace-pre-line leading-relaxed font-medium">
-                      {r.review || <span className="text-slate-400 italic font-normal">Không có nhận xét bằng văn bản.</span>}
+                      {r.review || <span className="text-slate-400 italic font-normal">KhÃ´ng cÃ³ nháº­n xÃ©t báº±ng vÄƒn báº£n.</span>}
                     </p>
                   )}
 
                   {/* Reply Input Form */}
                   {replyingRatingId === r.id && (
                     <div className="ml-12 mt-2 space-y-2 bg-slate-50 p-3 rounded-brand-sm border border-brand-light-border animate-fade-in">
-                      <h5 className="text-xs font-bold text-slate-750">Trả lời bình luận của {r.user?.fullName}</h5>
+                      <h5 className="text-xs font-bold text-slate-750">Tráº£ lá»i bÃ¬nh luáº­n cá»§a {r.user?.fullName}</h5>
                       <textarea
                         value={replyText}
                         onChange={(e) => setReplyText(e.target.value)}
-                        placeholder="Nhập nội dung phản hồi của bạn..."
+                        placeholder="Nháº­p ná»™i dung pháº£n há»“i cá»§a báº¡n..."
                         className="w-full text-xs rounded-brand-sm border border-brand-light-border p-2.5 shadow-brand-sm outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/10 bg-white"
                         rows={2}
                       />
@@ -736,14 +750,14 @@ export default function RecipeDetailPage() {
                           onClick={() => setReplyingRatingId(null)}
                           className="px-2.5 py-1 text-[10px] border border-brand-light-border rounded-brand-sm hover:bg-slate-100 transition-all font-bold text-slate-650 cursor-pointer"
                         >
-                          Hủy
+                          Há»§y
                         </button>
                         <button
                           onClick={() => handleReplySubmit(r.id)}
                           disabled={submittingReply}
                           className="px-3 py-1 text-[10px] bg-brand-primary text-white rounded-brand-sm hover:bg-brand-primary-hover transition-all font-bold cursor-pointer"
                         >
-                          {submittingReply ? 'Đang gửi...' : 'Gửi'}
+                          {submittingReply ? 'Äang gá»­i...' : 'Gá»­i'}
                         </button>
                       </div>
                     </div>
@@ -762,7 +776,7 @@ export default function RecipeDetailPage() {
                                 rep.user?.fullName?.charAt(0).toUpperCase() || 'U'
                               )}
                             </div>
-                            <span className="text-xs font-bold text-slate-900">{rep.user?.fullName || 'Người dùng ẩn danh'}</span>
+                            <span className="text-xs font-bold text-slate-900">{rep.user?.fullName || 'NgÆ°á»i dÃ¹ng áº©n danh'}</span>
                             <span className="text-[10px] text-slate-400 font-medium">
                               {new Date(rep.createdAt).toLocaleDateString('vi-VN')}
                             </span>
@@ -786,16 +800,16 @@ export default function RecipeDetailPage() {
               <div>
                 <h2 className="flex items-center gap-3 text-2xl font-bold text-slate-955">
                   <span className="text-brand-primary"><HiCalendar /></span>
-                  Thêm Vào Thực Đơn
+                  ThÃªm VÃ o Thá»±c ÄÆ¡n
                 </h2>
                 <p className="mt-2 text-sm text-slate-500">
-                  Chọn ngày và bữa ăn để thêm món <span className="font-bold text-slate-900">{recipe.name}</span>
+                  Chá»n ngÃ y vÃ  bá»¯a Äƒn Ä‘á»ƒ thÃªm mÃ³n <span className="font-bold text-slate-900">{recipe.name}</span>
                 </p>
               </div>
               <button
                 onClick={() => setPlanSelectorOpen(false)}
                 className="btn-ghost-sm h-8 w-8 !p-0 flex items-center justify-center"
-                aria-label="Đóng"
+                aria-label="ÄÃ³ng"
               >
                 <HiX className="text-xl" />
               </button>
@@ -803,12 +817,12 @@ export default function RecipeDetailPage() {
 
             <div className="px-7 py-6 space-y-7 bg-slate-50/20 overflow-y-auto flex-1">
               <section>
-                <h3 className="font-bold text-slate-700 text-sm uppercase tracking-wider mb-3">Chọn ngày</h3>
+                <h3 className="font-bold text-slate-700 text-sm uppercase tracking-wider mb-3">Chá»n ngÃ y</h3>
                 <div className="grid grid-cols-3 gap-2.5 mb-4">
                   {[
-                    { label: 'Hôm nay', offset: 0 },
-                    { label: 'Ngày mai', offset: 1 },
-                    { label: 'Ngày kia', offset: 2 },
+                    { label: 'HÃ´m nay', offset: 0 },
+                    { label: 'NgÃ y mai', offset: 1 },
+                    { label: 'NgÃ y kia', offset: 2 },
                   ].map((item) => {
                     const date = new Date();
                     date.setDate(date.getDate() + item.offset);
@@ -843,35 +857,41 @@ export default function RecipeDetailPage() {
                     />
                   </div>
                   <span className="flex h-12 items-center justify-center rounded-brand-sm bg-slate-100 px-4 text-sm text-slate-650 font-bold border border-brand-light-border">
-                    {selectedDate === todayValue ? 'Hôm nay' : 'Đã chọn'}
+                    {selectedDate === todayValue ? 'HÃ´m nay' : 'ÄÃ£ chá»n'}
                   </span>
                 </div>
               </section>
 
               <section>
-                <h3 className="font-bold text-slate-700 text-sm uppercase tracking-wider mb-3">Chọn bữa ăn</h3>
+                <h3 className="font-bold text-slate-700 text-sm uppercase tracking-wider mb-3">Chá»n bá»¯a Äƒn</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   {MEAL_OPTIONS.map((meal) => {
                     const active = selectedMeal === meal.key;
+                    const isDisabled = isPastMealSlot(selectedDate, meal.key);
 
                     return (
                       <button
                         key={meal.key}
                         type="button"
-                        onClick={() => setSelectedMeal(meal.key)}
+                        onClick={() => !isDisabled && setSelectedMeal(meal.key)}
+                        disabled={isDisabled}
                         className={`min-h-[132px] rounded-brand-md border p-5 text-left transition-all shadow-brand-sm cursor-pointer ${
-                          active
+                          isDisabled
+                            ? 'bg-slate-100 border-slate-200 text-slate-400 opacity-60 cursor-not-allowed'
+                            : active
                             ? `${meal.selected} ring-2 ring-brand-primary`
                             : `${meal.bg} ${meal.border} hover:shadow-brand-md hover:-translate-y-0.5`
                         }`}
                       >
                         <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-                          <span className={`flex h-12 w-12 items-center justify-center rounded-full bg-white text-2xl shadow-brand-sm ${meal.text}`}>
-                            {meal.icon}
+                          <span className={`flex h-12 w-12 items-center justify-center rounded-full bg-white text-2xl shadow-brand-sm ${isDisabled ? 'text-slate-300' : meal.text}`}>
+                            {isDisabled ? 'ðŸ”’' : meal.icon}
                           </span>
                           <span>
                             <span className="block text-lg font-bold text-slate-900">{meal.label}</span>
-                            <span className="block text-xs text-slate-400 font-medium">Chọn bữa này</span>
+                            <span className="block text-xs text-slate-400 font-medium">
+                              {isDisabled ? 'ÄÃ£ qua giá» Äƒn' : 'Chá»n bá»¯a nÃ y'}
+                            </span>
                           </span>
                         </div>
                       </button>
@@ -887,7 +907,7 @@ export default function RecipeDetailPage() {
                 onClick={() => setPlanSelectorOpen(false)}
                 className="btn-ghost"
               >
-                Hủy bỏ
+                Há»§y bá»
               </button>
               <button
                 type="button"
@@ -895,7 +915,7 @@ export default function RecipeDetailPage() {
                 disabled={submitting}
                 className="btn-primary"
               >
-                {submitting ? 'Đang thêm...' : 'Thêm vào thực đơn'}
+                {submitting ? 'Äang thÃªm...' : 'ThÃªm vÃ o thá»±c Ä‘Æ¡n'}
               </button>
             </div>
           </div>
@@ -932,4 +952,23 @@ function getMonday(date: Date): string {
 function getMealPlanDay(date: Date): number {
   const day = date.getDay();
   return day === 0 ? 7 : day;
+}
+
+function isPastMealSlot(dateStr: string, mealType: string): boolean {
+  const todayDate = getTodayInputValue();
+  if (dateStr < todayDate) return true;
+  if (dateStr > todayDate) return false;
+
+  const currentHour = new Date().getHours();
+  if (mealType === 'breakfast') return currentHour >= 10;
+  if (mealType === 'lunch') return currentHour >= 14;
+  if (mealType === 'dinner') return currentHour >= 20;
+  return false;
+}
+
+function getFirstAvailableMeal(dateStr: string): string {
+  if (!isPastMealSlot(dateStr, 'breakfast')) return 'breakfast';
+  if (!isPastMealSlot(dateStr, 'lunch')) return 'lunch';
+  if (!isPastMealSlot(dateStr, 'dinner')) return 'dinner';
+  return 'breakfast';
 }

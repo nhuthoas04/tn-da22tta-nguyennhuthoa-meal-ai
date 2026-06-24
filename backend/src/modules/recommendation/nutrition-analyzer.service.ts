@@ -5,6 +5,16 @@ import { WeeklyNutritionAnalysis } from './entities/weekly-nutrition-analysis.en
 import { MealPlan } from '../meal-plan/entities/meal-plan.entity';
 import { User } from '../auth/entities/user.entity';
 
+type NutritionAnalysisResponse = Omit<
+  WeeklyNutritionAnalysis,
+  'nutritionScore'
+> & {
+  analysis: string;
+  dataDays: number;
+  incompleteNutritionCount: number;
+  targetCalories: number | null;
+};
+
 @Injectable()
 export class NutritionAnalyzerService {
   private readonly logger = new Logger(NutritionAnalyzerService.name);
@@ -21,278 +31,211 @@ export class NutritionAnalyzerService {
   async analyzeWeeklyPlan(
     userId: string,
     weekStart: string,
-  ): Promise<WeeklyNutritionAnalysis | null> {
+  ): Promise<NutritionAnalysisResponse | null> {
     this.logger.log(
       `Analyzing weekly nutrition for user: ${userId}, weekStart: ${weekStart}`,
     );
 
-    // 1. Fetch user to check calorie target
-    const user = await this.userRepo.findOne({ where: { id: userId } });
+    const user = await this.userRepo.findOne({
+      where: { id: userId },
+      relations: ['preferences'],
+    });
     if (!user) return null;
-    const dailyCalorieTarget = user.dailyCalorieTarget || 2000;
-    const weeklyCalorieTarget = dailyCalorieTarget * 7;
 
-    // 2. Fetch the meal plan with items and recipes
-    const parsedDate = new Date(weekStart);
     const mealPlan = await this.mealPlanRepo.findOne({
-      where: { userId, weekStart: parsedDate },
+      where: { userId, weekStart: new Date(weekStart) },
       relations: ['items', 'items.recipe'],
     });
 
-    if (!mealPlan || !mealPlan.items || mealPlan.items.length === 0) {
-      this.logger.warn(
-        `No meal plan items found to analyze for week: ${weekStart}`,
-      );
+    const items = (mealPlan?.items || []).filter((item) => item.recipe);
+    if (items.length === 0) {
+      this.logger.warn(`No meal plan items found for week: ${weekStart}`);
       return null;
     }
 
-    // 3. Compute macros sum
+    const activeDates = new Set(
+      items.map((item) => this.formatDateInput(new Date(item.mealDate))),
+    );
+    const dataDays = activeDates.size;
+    const targetCalories = this.toPositiveNumber(user.dailyCalorieTarget);
+
     let totalCalories = 0;
     let totalProtein = 0;
     let totalCarbs = 0;
     let totalFat = 0;
-    let greensCount = 0;
+    let incompleteNutritionCount = 0;
     let friedCount = 0;
-    let redMeatCount = 0;
-    const recipeCounts = new Map<string, { name: string; count: number }>();
+    const recipeCounts = new Map<string, number>();
 
-    for (const item of mealPlan.items) {
-      if (!item.recipe) continue;
+    for (const item of items) {
       const recipe = item.recipe;
+      const calories = Number(recipe.calories) || 0;
+      const protein = Number(recipe.protein) || 0;
+      const carbs = Number(recipe.carbs) || 0;
+      const fat = Number(recipe.fat) || 0;
 
-      totalCalories += Number(recipe.calories || 0);
-      totalProtein += Number(recipe.protein || 0);
-      totalCarbs += Number(recipe.carbs || 0);
-      totalFat += Number(recipe.fat || 0);
+      totalCalories += calories;
+      totalProtein += protein;
+      totalCarbs += carbs;
+      totalFat += fat;
 
-      // Check tags
-      const tags = recipe.tags || [];
-      const recipeName = recipe.name.toLowerCase();
+      if (calories <= 0 || (protein === 0 && carbs === 0 && fat === 0)) {
+        incompleteNutritionCount += 1;
+      }
 
-      // Greens / veggies check
-      const hasGreens =
-        tags.some(
-          (t) =>
-            t.toLowerCase() === 'rau' ||
-            t.toLowerCase() === 'canh' ||
-            t.toLowerCase() === 'chay',
-        ) ||
-        recipeName.includes('rau') ||
-        recipeName.includes('canh');
-      if (hasGreens) greensCount++;
+      const normalizedName = recipe.name.toLocaleLowerCase('vi-VN');
+      const normalizedTags = (recipe.tags || []).map((tag) =>
+        tag.toLocaleLowerCase('vi-VN'),
+      );
+      if (
+        normalizedTags.some((tag) => ['chiên', 'rán', 'quay'].includes(tag)) ||
+        ['chiên', 'rán', 'quay'].some((keyword) =>
+          normalizedName.includes(keyword),
+        )
+      ) {
+        friedCount += 1;
+      }
 
-      // Fried foods check
-      const isFried =
-        tags.some(
-          (t) =>
-            t.toLowerCase() === 'chiên' ||
-            t.toLowerCase() === 'rán' ||
-            t.toLowerCase() === 'quay',
-        ) ||
-        recipeName.includes('chiên') ||
-        recipeName.includes('rán') ||
-        recipeName.includes('quay');
-      if (isFried) friedCount++;
-
-      // Red meat check
-      const isRedMeat =
-        (recipeName.includes('bò') ||
-          recipeName.includes('lợn') ||
-          recipeName.includes('heo') ||
-          recipeName.includes('ba chỉ')) &&
-        !(
-          recipeName.includes('gà') ||
-          recipeName.includes('cá') ||
-          recipeName.includes('tôm') ||
-          recipeName.includes('hải sản') ||
-          recipeName.includes('chay')
-        );
-      if (isRedMeat) redMeatCount++;
-
-      // Repeat checks
-      const countData = recipeCounts.get(recipe.id) || {
-        name: recipe.name,
-        count: 0,
-      };
-      countData.count++;
-      recipeCounts.set(recipe.id, countData);
+      recipeCounts.set(recipe.id, (recipeCounts.get(recipe.id) || 0) + 1);
     }
 
-    // 4. Scoring Algorithm & Feedback Construction
-    let score = 100;
+    const averageCalories = Math.round(totalCalories / dataDays);
+    const averageProtein = Math.round((totalProtein / dataDays) * 10) / 10;
+    const calorieRatio = targetCalories
+      ? averageCalories / targetCalories
+      : null;
+    const macroCalories = totalProtein * 4 + totalCarbs * 4 + totalFat * 9;
+    const proteinPercent = macroCalories
+      ? Math.round(((totalProtein * 4) / macroCalories) * 100)
+      : 0;
+    const fatPercent = macroCalories
+      ? Math.round(((totalFat * 9) / macroCalories) * 100)
+      : 0;
+    const repeatedRecipeCount = Array.from(recipeCounts.values()).filter(
+      (count) => count > 2,
+    ).length;
+
     const strengths: string[] = [];
     const weaknesses: string[] = [];
     const recommendations: string[] = [];
 
-    // Calorie rating
-    const calorieDiffPercent =
-      ((totalCalories - weeklyCalorieTarget) / weeklyCalorieTarget) * 100;
-    if (Math.abs(calorieDiffPercent) <= 10) {
+    const analysis = this.buildOverallAnalysis({
+      dataDays,
+      averageCalories,
+      targetCalories,
+      calorieRatio,
+    });
+
+    if (dataDays >= 3) {
+      if (calorieRatio !== null && calorieRatio >= 0.7 && calorieRatio <= 1) {
+        strengths.push(
+          `Calories trung bình ${averageCalories.toLocaleString('vi-VN')} kcal/ngày, tương đối phù hợp với mục tiêu ${targetCalories?.toLocaleString('vi-VN')} kcal/ngày.`,
+        );
+      }
       strengths.push(
-        'Lượng calo tổng thể trong tuần cân bằng, phù hợp mục tiêu năng lượng.',
+        `Protein trung bình từ các ngày có thực đơn là ${averageProtein.toLocaleString('vi-VN')}g/ngày. Đây là số liệu ghi nhận, chưa phải kết luận đủ hoặc thiếu protein.`,
       );
-    } else if (calorieDiffPercent > 10) {
-      const deduction = Math.min(Math.round(calorieDiffPercent - 10), 20);
-      score -= deduction;
-      weaknesses.push(
-        `Lượng calo vượt quá mục tiêu ${Math.round(calorieDiffPercent)}% (${totalCalories} kcal so với mục tiêu ${weeklyCalorieTarget} kcal).`,
-      );
-      recommendations.push(
-        'Cân nhắc thay thế một số món nhiều calo bằng các món luộc, salad, ít dầu mỡ.',
-      );
-    } else {
-      const deduction = Math.min(
-        Math.round(Math.abs(calorieDiffPercent) - 10),
-        20,
-      );
-      score -= deduction;
-      weaknesses.push(
-        `Lượng calo tuần thấp hơn khuyến nghị ${Math.round(Math.abs(calorieDiffPercent))}% (${totalCalories} kcal so với mục tiêu ${weeklyCalorieTarget} kcal).`,
-      );
-      recommendations.push(
-        'Đảm bảo ăn đầy đủ các bữa chính hoặc tăng khẩu phần ăn để không bị thiếu năng lượng.',
-      );
-    }
-
-    // Macro balance percentages
-    const carbCal = totalCarbs * 4;
-    const protCal = totalProtein * 4;
-    const fatCal = totalFat * 9;
-    const computedTotalCal = carbCal + protCal + fatCal || 1;
-
-    const carbPercent = (carbCal / computedTotalCal) * 100;
-    const protPercent = (protCal / computedTotalCal) * 100;
-    const fatPercent = (fatCal / computedTotalCal) * 100;
-
-    // Protein check
-    if (protPercent >= 15 && protPercent <= 30) {
-      strengths.push('Lượng protein đầy đủ và phân bổ hợp lý, tốt cho cơ bắp.');
-    } else if (protPercent < 15) {
-      score -= 10;
-      weaknesses.push(
-        `Tỷ lệ Protein hơi thấp (${Math.round(protPercent)}% so với khuyến nghị 15-30%).`,
-      );
-      recommendations.push(
-        'Bổ sung thêm ức gà, trứng, đậu hũ hoặc thịt bò nạc vào thực đơn.',
-      );
-    }
-
-    // Carbs check
-    if (carbPercent > 65) {
-      score -= 10;
-      weaknesses.push(
-        `Tỷ lệ Carbohydrate quá cao (${Math.round(carbPercent)}%), có thể gây tích mỡ.`,
-      );
-      recommendations.push(
-        'Giảm bớt tinh bột trắng (cơm, mì) hoặc chuyển sang tinh bột hấp thu chậm (cơm lứt, khoai lang).',
-      );
-    } else if (carbPercent < 40 && carbPercent > 0) {
-      strengths.push(
-        'Tỷ lệ Carbohydrate thấp, phù hợp với người muốn giảm cân nhanh.',
-      );
-    }
-
-    // Fats check
-    if (fatPercent > 35) {
-      score -= 10;
-      weaknesses.push(
-        `Tỷ lệ chất béo quá cao (${Math.round(fatPercent)}% so với khuyến nghị 20-35%).`,
-      );
-      recommendations.push(
-        'Hạn chế các đồ chiên xào nhiều dầu mỡ và thay bằng chất béo tốt (quả bơ, dầu oliu, hạt).',
-      );
-    }
-
-    // Greens check
-    if (greensCount >= 5) {
-      strengths.push(
-        'Bổ sung rất tốt chất xơ và vitamin nhờ các bữa ăn chứa rau xanh.',
-      );
-    } else {
-      score -= 15;
-      weaknesses.push(
-        `Thiếu chất xơ trầm trọng (chỉ có ${greensCount} bữa chứa rau xanh trong tuần).`,
-      );
-      recommendations.push(
-        'Hãy bổ sung tối thiểu 5 bữa chứa rau luộc, xào hoặc canh rau trong thực đơn tuần.',
-      );
-    }
-
-    // Red meat warn
-    if (redMeatCount > 4) {
-      score -= 10;
-      weaknesses.push(
-        `Sử dụng quá nhiều thịt đỏ (${redMeatCount} bữa thịt heo/bò tuần này).`,
-      );
-      recommendations.push(
-        'Giảm tần suất thịt đỏ, xen kẽ ăn thịt trắng (gà, cá, tôm) ít nhất 3 ngày trong tuần.',
-      );
-    }
-
-    // Fried foods warn
-    if (friedCount > 3) {
-      score -= 10;
-      weaknesses.push(
-        `Tần suất ăn đồ chiên rán cao (${friedCount} món nhiều dầu mỡ).`,
-      );
-      recommendations.push(
-        'Thay thế các món chiên rán bằng món hấp, luộc hoặc nướng bằng nồi chiên không dầu.',
-      );
-    }
-
-    // Repeated recipes check
-    let repeatedCount = 0;
-    for (const [_, data] of recipeCounts) {
-      if (data.count > 2) {
-        repeatedCount++;
+      if (repeatedRecipeCount === 0 && items.length >= dataDays * 2) {
+        strengths.push('Các món trong tuần có mức độ đa dạng tốt, không có món nào lặp quá 2 lần.');
       }
     }
-    if (repeatedCount > 0) {
-      score -= 10;
+
+    if (dataDays < 3) {
       weaknesses.push(
-        `Thực đơn lặp món nhiều (có ${repeatedCount} món bị lặp lại hơn 2 lần trong tuần).`,
+        'Dữ liệu còn ít, hệ thống chưa thể đánh giá toàn diện xu hướng dinh dưỡng trong tuần.',
       );
-      recommendations.push(
-        'Đa dạng hóa món ăn để cơ thể hấp thu phong phú vi chất dinh dưỡng.',
+    }
+    if (incompleteNutritionCount > 0) {
+      weaknesses.push(
+        `Có ${incompleteNutritionCount} món chưa có đầy đủ thông tin calories, protein, carbs hoặc fat; kết quả phân tích có thể chưa chính xác.`,
+      );
+    }
+    if (!targetCalories) {
+      weaknesses.push(
+        'Hồ sơ chưa có TDEE nên hệ thống chưa thể so sánh calories với nhu cầu cá nhân.',
+      );
+    } else if (calorieRatio !== null && calorieRatio < 0.7) {
+      weaknesses.push(
+        `Calories trung bình đang thấp hơn nhiều so với nhu cầu cá nhân (${averageCalories.toLocaleString('vi-VN')}/${targetCalories.toLocaleString('vi-VN')} kcal/ngày).`,
+      );
+    } else if (calorieRatio !== null && calorieRatio > 1.15) {
+      weaknesses.push(
+        `Calories trung bình vượt mục tiêu (${averageCalories.toLocaleString('vi-VN')}/${targetCalories.toLocaleString('vi-VN')} kcal/ngày).`,
+      );
+    }
+    if (fatPercent > 35 && macroCalories > 0) {
+      weaknesses.push(
+        `Chất béo đang chiếm khoảng ${fatPercent}% năng lượng từ các nhóm chất đã ghi nhận. Đây là dấu hiệu tham khảo, không phải chẩn đoán y khoa.`,
       );
     }
 
-    // Adjust score boundaries
-    score = Math.max(0, Math.min(100, score));
+    if (dataDays < 7) {
+      recommendations.push(
+        `Hãy bổ sung thực đơn cho ${7 - dataDays} ngày còn thiếu để phân tích xu hướng tuần chính xác hơn.`,
+      );
+    }
+    if (!targetCalories) {
+      recommendations.push(
+        'Cập nhật cân nặng, chiều cao, ngày sinh, giới tính và mức vận động trong hồ sơ để hệ thống tính TDEE.',
+      );
+    } else if (calorieRatio !== null && calorieRatio < 0.7) {
+      recommendations.push(
+        'Nên bổ sung thêm món chính hoặc tăng khẩu phần ở các bữa còn thiếu năng lượng.',
+      );
+    } else if (calorieRatio !== null && calorieRatio > 1.15) {
+      recommendations.push(
+        'Nên cân nhắc giảm khẩu phần hoặc giảm các món có calories cao trong những ngày vượt mục tiêu.',
+      );
+    }
+    if (proteinPercent > 0 && proteinPercent < 10) {
+      recommendations.push(
+        `Protein đang đóng góp khoảng ${proteinPercent}% năng lượng từ các nhóm chất đã ghi nhận. Có thể cân nhắc thêm thịt gà, cá, trứng hoặc đậu hũ.`,
+      );
+    }
+    if (fatPercent > 35 || friedCount > 3) {
+      recommendations.push(
+        'Có thể giảm món chiên xào nhiều dầu và ưu tiên món hấp, luộc hoặc nướng.',
+      );
+    }
 
-    // 5. Store / Update in database
-    let analysis = await this.analysisRepo.findOne({
+    let storedAnalysis = await this.analysisRepo.findOne({
       where: { userId, weekStart },
     });
-    if (!analysis) {
-      analysis = new WeeklyNutritionAnalysis();
-      analysis.userId = userId;
-      analysis.weekStart = weekStart;
+    if (!storedAnalysis) {
+      storedAnalysis = new WeeklyNutritionAnalysis();
+      storedAnalysis.userId = userId;
+      storedAnalysis.weekStart = weekStart;
     }
 
-    analysis.nutritionScore = score;
-    analysis.strengths = strengths;
-    analysis.weaknesses = weaknesses;
-    analysis.recommendations = recommendations;
-    analysis.macroSummary = {
+    // Legacy column is retained for database compatibility, but no score is shown to users.
+    storedAnalysis.nutritionScore = 0;
+    storedAnalysis.strengths = strengths;
+    storedAnalysis.weaknesses = weaknesses;
+    storedAnalysis.recommendations = recommendations;
+    storedAnalysis.macroSummary = {
       totalCalories,
       proteinGrams: Math.round(totalProtein),
       carbsGrams: Math.round(totalCarbs),
       fatGrams: Math.round(totalFat),
-      greensCount,
+      greensCount: 0,
     };
 
-    const savedAnalysis = await this.analysisRepo.save(analysis);
-    this.logger.log(
-      `Weekly nutrition report computed and saved with score: ${score}`,
-    );
-    return savedAnalysis;
+    const saved = await this.analysisRepo.save(storedAnalysis);
+    const { nutritionScore: _legacyScore, ...safeAnalysis } = saved;
+
+    return {
+      ...safeAnalysis,
+      analysis,
+      dataDays,
+      incompleteNutritionCount,
+      targetCalories,
+    };
   }
 
   async getLatestAnalysis(
     userId: string,
   ): Promise<WeeklyNutritionAnalysis | null> {
-    return await this.analysisRepo.findOne({
+    return this.analysisRepo.findOne({
       where: { userId },
       order: { weekStart: 'DESC' },
     });
@@ -302,8 +245,45 @@ export class NutritionAnalyzerService {
     userId: string,
     weekStart: string,
   ): Promise<WeeklyNutritionAnalysis | null> {
-    return await this.analysisRepo.findOne({
-      where: { userId, weekStart },
-    });
+    return this.analysisRepo.findOne({ where: { userId, weekStart } });
+  }
+
+  private buildOverallAnalysis(params: {
+    dataDays: number;
+    averageCalories: number;
+    targetCalories: number | null;
+    calorieRatio: number | null;
+  }): string {
+    const { dataDays, averageCalories, targetCalories, calorieRatio } = params;
+    const dataNote =
+      dataDays < 3
+        ? 'Dữ liệu tuần hiện tại chưa đầy đủ. Nhận xét chỉ mang tính tham khảo dựa trên các ngày đã có thực đơn. '
+        : '';
+
+    if (!targetCalories || calorieRatio === null) {
+      return `${dataNote}Đã tổng hợp ${dataDays} ngày có thực đơn với trung bình ${averageCalories.toLocaleString('vi-VN')} kcal/ngày. Hãy cập nhật hồ sơ cơ thể để hệ thống tính TDEE và so sánh với nhu cầu cá nhân.`;
+    }
+    if (calorieRatio < 0.7) {
+      return `${dataNote}Lượng calories trung bình đang thấp hơn nhiều so với nhu cầu cá nhân.`;
+    }
+    if (calorieRatio <= 1) {
+      return `${dataNote}Lượng calories trung bình tương đối phù hợp với mục tiêu.`;
+    }
+    if (calorieRatio <= 1.15) {
+      return `${dataNote}Calories trung bình hơi cao so với mục tiêu.`;
+    }
+    return `${dataNote}Calories trung bình vượt mục tiêu, nên cân nhắc giảm món nhiều năng lượng.`;
+  }
+
+  private toPositiveNumber(value: unknown): number | null {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }
+
+  private formatDateInput(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 }

@@ -49,7 +49,7 @@ export class RecommendationService {
     @InjectRepository(UserActionLog)
     private actionLogRepo: Repository<UserActionLog>,
     private calorieService: CalorieService,
-  ) {}
+  ) { }
 
   /**
    * Main recommendation endpoint
@@ -70,6 +70,7 @@ export class RecommendationService {
       prioritizeNew?: boolean;
       noRepeatIn7Days?: boolean;
       weeklyUsedRecipeIds?: string[];
+      previousDayRecipeIds?: string[];
     } = {},
   ) {
     // Load user context
@@ -176,8 +177,8 @@ export class RecommendationService {
     // Parse health conditions
     const healthConditions = preferences?.healthConditions
       ? preferences.healthConditions
-          .split(',')
-          .map((c) => c.trim().toLowerCase())
+        .split(',')
+        .map((c) => c.trim().toLowerCase())
       : [];
 
     // 1.1. Diabetes Filter (Loại món ăn nhiều đường)
@@ -290,12 +291,19 @@ export class RecommendationService {
         diversityScore -= 1.0;
       }
 
-      // 4. Trùng trong tuần (nếu noRepeatIn7Days là true)
-      if (
-        options?.noRepeatIn7Days &&
-        options?.weeklyUsedRecipeIds?.includes(recipe.id)
-      ) {
-        diversityScore -= 1.0;
+      // 4. Trùng trong tuần (nếu noRepeatIn7Days là true thì cấm lặp, nếu false thì phạt nhẹ để hạn chế)
+      if (options?.weeklyUsedRecipeIds?.includes(recipe.id)) {
+        if (options?.noRepeatIn7Days) {
+          diversityScore -= 1.0;
+        } else {
+          diversityScore -= 0.25;
+        }
+      }
+
+      // 5. Trùng với ngày hôm trước (ngày liên tiếp)
+      if (options?.previousDayRecipeIds?.includes(recipe.id)) {
+        console.log(`DEBUG [getRecommendations]: Penalizing consecutive day recipe "${recipe.name}" (ID: ${recipe.id}) with -0.8`);
+        diversityScore -= 0.8;
       }
 
       // Weighted sum matching new Stage 2 formula
@@ -308,8 +316,8 @@ export class RecommendationService {
 
       // Apply user habit adjustments and diversity score
       const habitAdjust = habitScores.get(recipe.id) || 0;
-      total = total + habitAdjust + diversityScore;
-      total = Math.max(0, Math.min(1.0, total));
+      const unclampedTotal = total + habitAdjust + diversityScore;
+      total = Math.max(0, Math.min(1.0, unclampedTotal));
 
       // Generate human-readable reasons
       const reasons = this.generateReasons(
@@ -359,6 +367,7 @@ export class RecommendationService {
         },
         score: {
           total: Math.round(total * 100) / 100,
+          unclampedTotal,
           ...scores,
         },
         reasons,
@@ -368,7 +377,7 @@ export class RecommendationService {
     });
 
     // ========== STAGE 3: RANK & DEDUPLICATE ==========
-    scored.sort((a, b) => b.score.total - a.score.total);
+    scored.sort((a, b) => b.score.unclampedTotal - a.score.unclampedTotal);
 
     return {
       calorieTarget: {

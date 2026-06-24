@@ -49,7 +49,7 @@ export class AuthService {
     await this.userRepo.save(user);
 
     // Create default preferences
-    const prefs = this.prefRepo.create({ userId: user.id });
+    const prefs = this.prefRepo.create({ userId: user.id, servings: null });
     await this.prefRepo.save(prefs);
 
     // Generate tokens

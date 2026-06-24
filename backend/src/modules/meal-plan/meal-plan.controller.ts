@@ -146,6 +146,7 @@ export class MealPlanController {
       mealDates?: string[];
       useAntiWaste?: boolean;
       mealType?: string;
+      mealTypes?: string[];
       overwrite?: boolean;
       optimizePortions?: boolean;
       prioritizeNew?: boolean;

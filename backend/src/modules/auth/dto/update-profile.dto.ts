@@ -2,6 +2,8 @@ import {
   IsOptional,
   IsString,
   IsNumber,
+  IsInt,
+  IsNotEmpty,
   IsObject,
   ValidateNested,
   IsArray,
@@ -40,9 +42,12 @@ class PreferencesDto {
   @IsNumber()
   budgetPerMeal?: number;
 
-  @IsOptional()
-  @IsNumber()
-  servings?: number;
+  @IsNotEmpty({ message: 'Vui lòng nhập số người ăn.' })
+  @Type(() => Number)
+  @IsInt({ message: 'Số người ăn phải là số nguyên.' })
+  @Min(1, { message: 'Số người ăn phải lớn hơn hoặc bằng 1.' })
+  @Max(20, { message: 'Số người ăn không được vượt quá 20.' })
+  servings: number;
 
   @IsOptional()
   @IsString()

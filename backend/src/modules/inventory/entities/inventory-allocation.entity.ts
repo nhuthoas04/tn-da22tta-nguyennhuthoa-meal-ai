@@ -28,6 +28,9 @@ export class InventoryAllocation {
   @Column({ type: 'uuid', nullable: true })
   shoppingListId: string;
 
+  @Column({ type: 'uuid', nullable: true })
+  shoppingListItemId: string;
+
   @Column({ type: 'decimal', precision: 8, scale: 2 })
   quantityAllocated: number;
 
@@ -35,7 +38,13 @@ export class InventoryAllocation {
   recipeId: string;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
+  recipeName: string;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
   ingredientName: string;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  shoppingListName: string;
 
   @Column({ type: 'varchar', length: 20, nullable: true })
   unit: string;
@@ -45,6 +54,21 @@ export class InventoryAllocation {
 
   @Column({ type: 'date', nullable: true })
   usedForDate: Date;
+
+  @Column({ type: 'varchar', length: 30, default: 'shopping_list' })
+  usageType: string;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  reason: string;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  note: string;
+
+  @Column({ type: 'boolean', default: true })
+  isActive: boolean;
+
+  @Column({ type: 'timestamp', nullable: true })
+  revertedAt: Date;
 
   @CreateDateColumn({ name: 'allocation_date' })
   allocationDate: Date;

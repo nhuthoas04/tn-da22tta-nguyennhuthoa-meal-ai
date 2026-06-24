@@ -28,6 +28,12 @@ export class ShoppingListItem {
   @Column({ type: 'decimal', precision: 8, scale: 2, default: 0 })
   quantitySourced: number;
 
+  @Column({ type: 'decimal', precision: 8, scale: 2, default: 0 })
+  availableQuantity: number;
+
+  @Column({ type: 'decimal', precision: 8, scale: 2, default: 0 })
+  needToBuyQuantity: number;
+
   @Column({ type: 'varchar', length: 20 })
   unit: string;
 
@@ -36,6 +42,12 @@ export class ShoppingListItem {
 
   @Column({ type: 'boolean', default: false })
   isPurchased: boolean;
+
+  @Column({ type: 'boolean', default: false })
+  isEnoughFromInventory: boolean;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  note: string;
 
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
   estimatedPrice: number;

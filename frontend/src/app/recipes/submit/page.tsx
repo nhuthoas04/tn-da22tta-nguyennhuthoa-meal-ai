@@ -131,7 +131,7 @@ export default function SubmitRecipePage() {
             onChange={(url) => setForm({ ...form, imageUrl: url })}
             label="Ảnh món ăn"
           />
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Thời gian nấu (phút) *</label>
               <input type="number" value={form.cookingTime} onChange={(e) => setForm({ ...form, cookingTime: +e.target.value })}
@@ -151,11 +151,21 @@ export default function SubmitRecipePage() {
                 <option value="hard">Khó</option>
               </select>
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Giá ước tính (₫)</label>
+              <input type="number" value={form.estimatedCost} onChange={(e) => setForm({ ...form, estimatedCost: +e.target.value })}
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" min={0} />
+            </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Calories (kcal/phần) *</label>
-            <input type="number" value={form.calories} onChange={(e) => setForm({ ...form, calories: +e.target.value })}
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" required />
+            <label className="block text-sm font-medium text-gray-700 mb-1">Vùng miền</label>
+            <select value={form.cuisineRegion} onChange={(e) => setForm({ ...form, cuisineRegion: e.target.value })}
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none">
+              <option value="">Không xác định</option>
+              <option value="miền Bắc">Miền Bắc</option>
+              <option value="miền Trung">Miền Trung</option>
+              <option value="miền Nam">Miền Nam</option>
+            </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Bữa ăn</label>
@@ -169,9 +179,36 @@ export default function SubmitRecipePage() {
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Tags</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Tags (phân cách bằng dấu phẩy)</label>
             <input type="text" value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })}
               placeholder="VD: nhanh, chay, miền Nam" className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" />
+          </div>
+        </div>
+
+        {/* Nutrition */}
+        <div className="bg-white rounded-2xl border border-gray-200 p-6 space-y-4">
+          <h2 className="text-lg font-semibold text-gray-900">Dinh dưỡng (mỗi phần)</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Calories (kcal) *</label>
+              <input type="number" value={form.calories} onChange={(e) => setForm({ ...form, calories: +e.target.value })}
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" required />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Protein (g)</label>
+              <input type="number" value={form.protein} onChange={(e) => setForm({ ...form, protein: +e.target.value })}
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Carbs (g)</label>
+              <input type="number" value={form.carbs} onChange={(e) => setForm({ ...form, carbs: +e.target.value })}
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Fat (g)</label>
+              <input type="number" value={form.fat} onChange={(e) => setForm({ ...form, fat: +e.target.value })}
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" />
+            </div>
           </div>
         </div>
 
