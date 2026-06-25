@@ -1,5 +1,8 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
@@ -235,7 +238,7 @@ export default function AdminPendingPage() {
     if (!recipe) return;
     const status = recipe.status?.toLowerCase();
     if (status !== 'pending') {
-      toast.error('Công thức này không còn ở trạng thái chờ duyệt.');
+      toast.error('Công thức này không còn ở trạng thái chờ duyệt. Danh sách sẽ được tải lại.');
       loadPending();
       return;
     }
@@ -244,13 +247,16 @@ export default function AdminPendingPage() {
     try {
       await adminAPI.approve(id);
       toast.success('Đã duyệt công thức');
+      setRecipes((prev) => prev.filter((r) => r.id !== id));
       loadPending();
     } catch (err: any) {
-      if (err?.response?.status === 403) {
-        toast.error('Công thức này không còn ở trạng thái chờ duyệt. Vui lòng tải lại danh sách.');
+      const errMsg = err?.response?.data?.message;
+      if (err?.response?.status === 403 || (typeof errMsg === 'string' && errMsg.includes('Only pending recipes'))) {
+        toast.error('Công thức này không còn ở trạng thái chờ duyệt. Danh sách sẽ được cập nhật lại.');
         loadPending();
       } else {
-        toast.error(getApiErrorMessage(err, 'Lỗi khi duyệt'));
+        toast.error(getApiErrorMessage(err, 'Lỗi khi duyệt. Danh sách sẽ được tải lại.'));
+        loadPending();
       }
     } finally {
       setApprovingId(null);
@@ -263,7 +269,7 @@ export default function AdminPendingPage() {
     if (!recipe) return;
     const status = recipe.status?.toLowerCase();
     if (status !== 'pending') {
-      toast.error('Công thức này không còn ở trạng thái chờ duyệt.');
+      toast.error('Công thức này không còn ở trạng thái chờ duyệt. Danh sách sẽ được tải lại.');
       loadPending();
       handleCloseRejectModal();
       return;
@@ -273,15 +279,18 @@ export default function AdminPendingPage() {
     try {
       await adminAPI.reject(rejectingId, rejectReason.trim());
       toast.success('Đã từ chối công thức');
+      setRecipes((prev) => prev.filter((r) => r.id !== rejectingId));
       handleCloseRejectModal();
       loadPending();
     } catch (err: any) {
-      if (err?.response?.status === 403) {
-        toast.error('Công thức này không còn ở trạng thái chờ duyệt. Vui lòng tải lại danh sách.');
-        loadPending();
+      const errMsg = err?.response?.data?.message;
+      if (err?.response?.status === 403 || (typeof errMsg === 'string' && errMsg.includes('Only pending recipes'))) {
+        toast.error('Công thức này không còn ở trạng thái chờ duyệt. Danh sách sẽ được cập nhật lại.');
         handleCloseRejectModal();
+        loadPending();
       } else {
-        toast.error(getApiErrorMessage(err, 'Lỗi khi từ chối'));
+        toast.error(getApiErrorMessage(err, 'Lỗi khi từ chối. Danh sách sẽ được tải lại.'));
+        loadPending();
       }
     } finally {
       setSubmittingReject(false);
