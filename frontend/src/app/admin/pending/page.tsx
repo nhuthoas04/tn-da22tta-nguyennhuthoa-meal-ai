@@ -140,6 +140,13 @@ export default function AdminPendingPage() {
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [viewRecipe, setViewRecipe] = useState<any>(null);
+  const [submittingReject, setSubmittingReject] = useState(false);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+
+  const handleCloseRejectModal = () => {
+    setRejectingId(null);
+    setRejectReason('');
+  };
   const [editingRecipe, setEditingRecipe] = useState<any | null>(null);
   const [editForm, setEditForm] = useState(emptyEditForm);
   const [uploading, setUploading] = useState(false);
@@ -201,25 +208,61 @@ export default function AdminPendingPage() {
   };
 
   const handleApprove = async (id: string) => {
+    if (approvingId) return;
+    const recipe = recipes.find((r) => r.id === id);
+    if (!recipe) return;
+    const status = recipe.status?.toLowerCase();
+    if (status !== 'pending') {
+      toast.error('Công thức này không còn ở trạng thái chờ duyệt.');
+      loadPending();
+      return;
+    }
+
+    setApprovingId(id);
     try {
       await adminAPI.approve(id);
       toast.success('Đã duyệt công thức');
       loadPending();
-    } catch (err) {
-      toast.error(getApiErrorMessage(err, 'Lỗi khi duyệt'));
+    } catch (err: any) {
+      if (err?.response?.status === 403) {
+        toast.error('Công thức này không còn ở trạng thái chờ duyệt. Vui lòng tải lại danh sách.');
+        loadPending();
+      } else {
+        toast.error(getApiErrorMessage(err, 'Lỗi khi duyệt'));
+      }
+    } finally {
+      setApprovingId(null);
     }
   };
 
   const handleReject = async () => {
-    if (!rejectingId || !rejectReason.trim()) return;
+    if (!rejectingId || !rejectReason.trim() || submittingReject) return;
+    const recipe = recipes.find((r) => r.id === rejectingId);
+    if (!recipe) return;
+    const status = recipe.status?.toLowerCase();
+    if (status !== 'pending') {
+      toast.error('Công thức này không còn ở trạng thái chờ duyệt.');
+      loadPending();
+      handleCloseRejectModal();
+      return;
+    }
+
+    setSubmittingReject(true);
     try {
       await adminAPI.reject(rejectingId, rejectReason.trim());
       toast.success('Đã từ chối công thức');
-      setRejectingId(null);
-      setRejectReason('');
+      handleCloseRejectModal();
       loadPending();
-    } catch (err) {
-      toast.error(getApiErrorMessage(err, 'Lỗi khi từ chối'));
+    } catch (err: any) {
+      if (err?.response?.status === 403) {
+        toast.error('Công thức này không còn ở trạng thái chờ duyệt. Vui lòng tải lại danh sách.');
+        loadPending();
+        handleCloseRejectModal();
+      } else {
+        toast.error(getApiErrorMessage(err, 'Lỗi khi từ chối'));
+      }
+    } finally {
+      setSubmittingReject(false);
     }
   };
 
@@ -529,25 +572,33 @@ export default function AdminPendingPage() {
                   <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto lg:justify-end mt-4 lg:mt-0 pt-4 lg:pt-0 border-t lg:border-t-0 border-gray-100">
                     <button
                       onClick={() => handleEditClick(recipe)}
-                      className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2 bg-blue-50 text-blue-700 rounded-xl text-sm font-medium hover:bg-blue-100 transition cursor-pointer"
+                      disabled={approvingId !== null || submittingReject}
+                      className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2 bg-blue-50 text-blue-700 rounded-xl text-sm font-medium hover:bg-blue-100 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <HiPencil className="text-base" /> Sửa bài viết
                     </button>
-                    <button
-                      onClick={() => handleApprove(recipe.id)}
-                      className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-50 text-emerald-700 rounded-xl text-sm font-medium hover:bg-emerald-100 transition cursor-pointer"
-                    >
-                      <HiCheckCircle className="text-lg" /> Duyệt
-                    </button>
-                    <button
-                      onClick={() => {
-                        setRejectingId(recipe.id);
-                        setRejectReason('');
-                      }}
-                      className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2 bg-red-50 text-red-700 rounded-xl text-sm font-medium hover:bg-red-100 transition cursor-pointer"
-                    >
-                      <HiXCircle className="text-lg" /> Từ chối
-                    </button>
+                    {recipe.status?.toLowerCase() === 'pending' && (
+                      <>
+                        <button
+                          onClick={() => handleApprove(recipe.id)}
+                          disabled={approvingId !== null || submittingReject}
+                          className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-50 text-emerald-700 rounded-xl text-sm font-medium hover:bg-emerald-100 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <HiCheckCircle className="text-lg" />{' '}
+                          {approvingId === recipe.id ? 'Đang duyệt...' : 'Duyệt'}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setRejectingId(recipe.id);
+                            setRejectReason('');
+                          }}
+                          disabled={approvingId !== null || submittingReject}
+                          className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2 bg-red-50 text-red-700 rounded-xl text-sm font-medium hover:bg-red-100 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <HiXCircle className="text-lg" /> Từ chối
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -559,7 +610,7 @@ export default function AdminPendingPage() {
       {rejectingId && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 backdrop-blur-sm"
-          onClick={() => setRejectingId(null)}
+          onClick={() => !submittingReject && handleCloseRejectModal()}
         >
           <div
             className="bg-white rounded-2xl p-4 sm:p-6 w-full max-w-md mx-4 max-h-[90vh] flex flex-col overflow-y-auto shadow-xl border border-gray-200"
@@ -573,23 +624,25 @@ export default function AdminPendingPage() {
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
               rows={3}
+              disabled={submittingReject}
               placeholder="VD: Công thức chưa đủ chi tiết..."
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 outline-none resize-none"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 outline-none resize-none disabled:opacity-50"
               autoFocus
             />
             <div className="flex justify-end gap-3 mt-4">
               <button
-                onClick={() => setRejectingId(null)}
-                className="px-4 py-2 border border-gray-300 rounded-xl text-gray-700 font-medium hover:bg-gray-50 transition cursor-pointer font-bold"
+                onClick={handleCloseRejectModal}
+                disabled={submittingReject}
+                className="px-4 py-2 border border-gray-300 rounded-xl text-gray-700 font-medium hover:bg-gray-50 transition cursor-pointer font-bold disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Hủy
               </button>
               <button
                 onClick={handleReject}
-                disabled={!rejectReason.trim()}
-                className="px-4 py-2 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition disabled:opacity-50 cursor-pointer font-bold"
+                disabled={!rejectReason.trim() || submittingReject}
+                className="px-4 py-2 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition disabled:opacity-50 cursor-pointer font-bold disabled:cursor-not-allowed"
               >
-                Xác nhận từ chối
+                {submittingReject ? 'Đang từ chối...' : 'Xác nhận từ chối'}
               </button>
             </div>
           </div>

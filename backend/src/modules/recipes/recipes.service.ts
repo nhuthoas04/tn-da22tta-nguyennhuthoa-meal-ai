@@ -676,7 +676,7 @@ export class RecipesService implements OnModuleInit {
     });
     if (!recipe) throw new NotFoundException('Recipe not found');
     if (recipe.status !== 'pending') {
-      throw new ForbiddenException('Only pending recipes can be approved');
+      throw new ForbiddenException('Chỉ có thể duyệt công thức đang chờ duyệt.');
     }
 
     recipe.status = 'approved';
@@ -724,7 +724,7 @@ export class RecipesService implements OnModuleInit {
     });
     if (!recipe) throw new NotFoundException('Recipe not found');
     if (recipe.status !== 'pending') {
-      throw new ForbiddenException('Only pending recipes can be rejected');
+      throw new ForbiddenException('Chỉ có thể từ chối công thức đang chờ duyệt.');
     }
 
     recipe.status = 'rejected';
