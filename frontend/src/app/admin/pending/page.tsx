@@ -542,73 +542,119 @@ export default function AdminPendingPage() {
                       </span>
                     </div>
 
-                    {displaySteps.length > 0 && (
-                      <div className="mt-3">
-                        <button
-                          onClick={() => toggleViewRecipe(recipe)}
-                          className="flex items-center gap-1 text-sm text-purple-600 hover:text-purple-700 font-medium cursor-pointer"
-                        >
-                          <HiEye />{' '}
-                          {viewRecipe?.id === recipe.id
-                            ? 'Ẩn chi tiết & AI Audit'
-                            : 'Xem chi tiết & AI Audit'}
-                        </button>
+                    <div className="mt-3">
+                      <button
+                        onClick={() => toggleViewRecipe(recipe)}
+                        className="flex items-center gap-1 text-sm text-purple-600 hover:text-purple-700 font-medium cursor-pointer"
+                      >
+                        <HiEye />{' '}
+                        {viewRecipe?.id === recipe.id
+                          ? 'Ẩn chi tiết & AI Audit'
+                          : 'Xem chi tiết & AI Audit'}
+                      </button>
 
-                        {viewRecipe?.id === recipe.id && (
-                          <div className="mt-4 space-y-4">
-                            <div className="pl-4 border-l-2 border-purple-200 space-y-1">
-                              {viewedSteps.map((step, index) => (
-                                <p key={index} className="text-sm text-gray-600">
-                                  <span className="font-medium text-purple-600">
-                                    Bước {step.step}:
-                                  </span>{' '}
-                                  {step.description}
-                                </p>
-                              ))}
-                            </div>
-
-                            {loadingAudit[recipe.id] ? (
-                              <div className="bg-emerald-50/50 p-4 rounded-xl border border-emerald-100/50 animate-pulse text-xs text-emerald-800 font-medium">
-                                Trợ lý AI đang thẩm định công thức...
-                              </div>
-                            ) : auditData[recipe.id] ? (
-                              <div className="p-4 bg-emerald-50/30 rounded-2xl border border-emerald-100/50 space-y-3">
-                                <div className="flex items-center justify-between">
-                                  <h4 className="text-xs font-bold text-emerald-700">
-                                    Đánh giá kiểm duyệt từ AI
-                                  </h4>
-                                  <div className="flex items-center gap-2">
-                                    <button
-                                      onClick={() => handleRetryAudit(recipe.id)}
-                                      className="px-2 py-0.5 bg-amber-100 text-amber-800 hover:bg-amber-200 transition rounded-full text-[10px] font-bold border-none cursor-pointer"
-                                    >
-                                      Thử lại AI Review
-                                    </button>
-                                    <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
-                                      AI Score: {feedback.scoreLabel}
-                                    </span>
-                                  </div>
-                                </div>
-                                <div className="text-xs text-gray-700 space-y-1">
-                                  <div>
-                                    <span className="font-bold text-gray-500">
-                                      Đo lường Calo:
-                                    </span>{' '}
-                                    {feedback.nutritionNote}
-                                  </div>
-                                  <div>
-                                    <span className="font-bold text-gray-500">
-                                      Nhận xét chi tiết:
-                                    </span>{' '}
-                                    {feedback.detail}
-                                  </div>
-                                </div>
-                              </div>
-                            ) : null}
+                      {viewRecipe?.id === recipe.id && (
+                        <div className="mt-4 space-y-4 border-t pt-4">
+                          {/* Mô tả */}
+                          <div className="space-y-1">
+                            <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider">Mô tả</h4>
+                            <p className="text-sm text-gray-600 pl-4 border-l-2 border-purple-200">
+                              {recipe.description ? recipe.description : 'Chưa có mô tả.'}
+                            </p>
                           </div>
-                        )}
-                      </div>
-                    )}
+
+                          {/* Nguyên liệu */}
+                          <div className="space-y-1">
+                            <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider">Nguyên liệu</h4>
+                            {recipe.recipeIngredients && recipe.recipeIngredients.length > 0 ? (
+                              <ul className="list-disc pl-8 text-sm text-gray-650 space-y-1">
+                                {recipe.recipeIngredients.map((ri: any, idx: number) => (
+                                  <li key={idx}>
+                                    {ri.ingredient?.name || ri.name || 'Nguyên liệu không rõ'}: {ri.quantity} {ri.unit}
+                                    {ri.isOptional ? ' (tùy chọn)' : ''}
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="text-sm text-gray-500 pl-4 border-l-2 border-purple-200">
+                                Công thức chưa có nguyên liệu.
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Các bước thực hiện */}
+                          <div className="space-y-1">
+                            <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider">Các bước thực hiện</h4>
+                            {viewedSteps.length > 0 ? (
+                              <div className="pl-4 border-l-2 border-purple-200 space-y-2">
+                                {viewedSteps.map((step, index) => (
+                                  <p key={index} className="text-sm text-gray-600">
+                                    <span className="font-medium text-purple-600">
+                                      Bước {step.step}:
+                                    </span>{' '}
+                                    {step.description}
+                                  </p>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-sm text-gray-500 pl-4 border-l-2 border-purple-200">
+                                Công thức chưa có các bước thực hiện.
+                              </p>
+                            )}
+                          </div>
+
+                          {/* AI Audit */}
+                          {loadingAudit[recipe.id] ? (
+                            <div className="bg-emerald-50/50 p-4 rounded-xl border border-emerald-100/50 animate-pulse text-xs text-emerald-800 font-medium">
+                              Trợ lý AI đang thẩm định công thức...
+                            </div>
+                          ) : auditData[recipe.id] ? (
+                            <div className="p-4 bg-emerald-50/30 rounded-2xl border border-emerald-100/50 space-y-3">
+                              <div className="flex items-center justify-between">
+                                <h4 className="text-xs font-bold text-emerald-700">
+                                  Đánh giá kiểm duyệt từ AI
+                                </h4>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => handleRetryAudit(recipe.id)}
+                                    className="px-2 py-0.5 bg-amber-100 text-amber-800 hover:bg-amber-200 transition rounded-full text-[10px] font-bold border-none cursor-pointer"
+                                  >
+                                    Thử lại AI Review
+                                  </button>
+                                  <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
+                                    AI Score: {feedback.scoreLabel}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="text-xs text-gray-700 space-y-1">
+                                <div>
+                                  <span className="font-bold text-gray-500">
+                                    Đo lường Calo:
+                                  </span>{' '}
+                                  {feedback.nutritionNote}
+                                </div>
+                                <div>
+                                  <span className="font-bold text-gray-500">
+                                    Nhận xét chi tiết:
+                                  </span>{' '}
+                                  {feedback.detail}
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200 flex justify-between items-center">
+                              <span className="text-xs text-gray-500">Chưa có kết quả thẩm định AI.</span>
+                              <button
+                                onClick={() => handleRetryAudit(recipe.id)}
+                                className="px-3 py-1 bg-emerald-600 text-white hover:bg-emerald-700 transition rounded-xl text-xs font-bold border-none cursor-pointer"
+                              >
+                                Chạy AI Review
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto lg:justify-end mt-4 lg:mt-0 pt-4 lg:pt-0 border-t lg:border-t-0 border-gray-100">

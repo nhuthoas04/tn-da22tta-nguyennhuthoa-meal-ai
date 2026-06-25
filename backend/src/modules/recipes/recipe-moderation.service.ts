@@ -128,49 +128,60 @@ export class RecipeModerationService implements OnModuleInit {
 
     if (normalizedSteps.length < 2) {
       missingSteps.push(
-        'Cac buoc che bien qua ngan. Hay bo sung it nhat 2 buoc ro rang.',
+        'Các bước chế biến quá ngắn. Hãy bổ sung ít nhất 2 bước rõ ràng.',
       );
       qualityScore -= 20;
+    } else {
+      const hasTooShortStep = normalizedSteps.some(
+        (step) => step.description.trim().length <= 2,
+      );
+      if (hasTooShortStep) {
+        missingSteps.push('Bước thực hiện chưa đủ rõ để người dùng làm theo.');
+        qualityScore -= 30;
+      }
     }
 
     if (ingredientNames.length < 2) {
-      missingIngredients.push(
-        'Danh sach nguyen lieu qua ngan. Hay bo sung it nhat 2 nguyen lieu.',
-      );
+      missingIngredients.push('Cần bổ sung nguyên liệu và định lượng.');
       qualityScore -= 20;
     }
 
-    let rawFeedback = 'Kiem tra tinh hoan thanh.';
-    let nutritionValidityNotes =
-      'Calo va dinh duong se duoc admin xem xet them neu can.';
+    let nutritionValidityNotes = 'Calo và dinh dưỡng sẽ được admin xem xét thêm nếu cần.';
+    if (recipe.calories === 0) {
+      nutritionValidityNotes = 'Công thức thiếu thông tin dinh dưỡng.';
+      qualityScore -= 10;
+    }
+
+    let rawFeedback = 'Kiểm tra tính hoàn thành.';
     let aiEvaluationFailed = false;
 
     if (this.genAI) {
       try {
         const model = this.genAI.getGenerativeModel({ model: this.modelName });
         const prompt = `
-Ban la tro ly kiem duyet cong thuc.
-Hay phan tich cong thuc sau va tra ve JSON thuan:
+Bạn là trợ lý duyệt công thức nấu ăn của hệ thống AI Meal Planner.
+Hãy phân tích công thức sau cực kỳ kỹ lưỡng và khách quan, sau đó trả về một đối tượng JSON thuần túy (không kèm markdown hay text giải thích ngoài JSON) theo đúng định dạng sau:
 {
-  "caloriesReasonable": true,
-  "nutritionValidityNotes": "...",
-  "qualityScore": 0,
-  "missingIngredients": [],
-  "missingSteps": [],
-  "feedback": "..."
+  "caloriesReasonable": boolean,
+  "nutritionValidityNotes": "Nhận xét chi tiết về calo và dinh dưỡng bằng tiếng Việt. Nếu Calories = 0, bắt buộc ghi rõ 'Công thức thiếu thông tin dinh dưỡng.'",
+  "qualityScore": number (từ 0 đến 100),
+  "missingIngredients": string[] (Danh sách các cảnh báo nguyên liệu bằng tiếng Việt. Ví dụ: 'Cần bổ sung nguyên liệu và định lượng.' nếu thiếu nguyên liệu hoặc định lượng không rõ ràng),
+  "missingSteps": string[] (Danh sách cảnh báo các bước bằng tiếng Việt. Ví dụ: 'Bước thực hiện chưa đủ rõ để người dùng làm theo.' nếu các bước quá ngắn, ví dụ chỉ ghi 'à', hoặc không rõ ràng),
+  "feedback": "Nhận xét/đánh giá chung bằng tiếng Việt. Nếu nội dung công thức quá sơ sài hoặc thiếu thông tin quan trọng, bắt buộc ghi 'Không nên duyệt ngay nếu nội dung chưa đầy đủ.'"
 }
 
-Ten mon: ${recipe.name}
-Mo ta: ${recipe.description || 'Khong co'}
-Nguyen lieu: ${
+Thông tin công thức:
+Tên món: ${recipe.name}
+Mô tả: ${recipe.description || 'Không có'}
+Nguyên liệu: ${
           recipe.recipeIngredients
             ?.map((ri) => `${ri.quantity} ${ri.unit} ${ri.ingredient?.name}`)
-            .join(', ') || 'Khong co'
+            .join(', ') || 'Không có'
         }
-Calories: ${recipe.calories} kcal/phan
+Calories: ${recipe.calories} kcal/phần
 Protein: ${recipe.protein}g, Carbs: ${recipe.carbs}g, Fat: ${recipe.fat}g
-Steps:
-${normalizedSteps.map((step) => `Buoc ${step.step}: ${step.description}`).join('\n') || 'Khong co'}
+Các bước thực hiện:
+${normalizedSteps.map((step) => `Bước ${step.step}: ${step.description}`).join('\n') || 'Không có'}
         `;
 
         const response = await model.generateContent(prompt);
@@ -199,7 +210,9 @@ ${normalizedSteps.map((step) => `Buoc ${step.step}: ${step.description}`).join('
         );
         aiEvaluationFailed = true;
         nutritionValidityNotes =
-          'AI chưa đánh giá được, admin có thể duyệt thủ công.';
+          recipe.calories === 0
+            ? 'Công thức thiếu thông tin dinh dưỡng.'
+            : 'AI chưa đánh giá được, admin có thể duyệt thủ công.';
         rawFeedback = this.isTransientGeminiError(err?.message)
           ? 'Gemini đang bận hoặc tạm thời quá tải. Bạn có thể thử lại AI Review sau.'
           : 'AI chưa đánh giá được công thức lúc này. Admin vẫn có thể duyệt thủ công.';
@@ -207,9 +220,11 @@ ${normalizedSteps.map((step) => `Buoc ${step.step}: ${step.description}`).join('
     } else {
       aiEvaluationFailed = true;
       nutritionValidityNotes =
-        'AI chưa đánh giá được, admin có thể duyệt thủ công.';
+        recipe.calories === 0
+          ? 'Công thức thiếu thông tin dinh dưỡng.'
+          : 'AI chưa đánh giá được, admin có thể duyệt thủ công.';
       rawFeedback =
-        'AI moderation chua duoc cau hinh hoac tam thoi khong kha dung.';
+        'AI moderation chưa được cấu hình hoặc tạm thời không khả dụng.';
     }
 
     audit.missingIngredients = Array.from(new Set(missingIngredients));
@@ -217,7 +232,7 @@ ${normalizedSteps.map((step) => `Buoc ${step.step}: ${step.description}`).join('
 
     if (audit.isDuplicateDetected) {
       qualityScore = Math.max(10, qualityScore - 30);
-      rawFeedback = `Canh bao trung lap voi cong thuc "${possibleDuplicate?.name}". ${rawFeedback}`;
+      rawFeedback = `Cảnh báo trùng lặp với công thức "${possibleDuplicate?.name}". ${rawFeedback}`;
     }
 
     if (aiEvaluationFailed) {
