@@ -15,6 +15,7 @@ import {
   HiXCircle,
 } from 'react-icons/hi';
 import { adminAPI, uploadAPI } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 
 type EditIngredient = {
   name: string;
@@ -135,8 +136,10 @@ const formatAuditFeedback = (audit: any) => {
 };
 
 export default function AdminPendingPage() {
+  const { user, loading: authLoading } = useAuth();
   const [recipes, setRecipes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [viewRecipe, setViewRecipe] = useState<any>(null);
@@ -154,16 +157,35 @@ export default function AdminPendingPage() {
   const [loadingAudit, setLoadingAudit] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    loadPending();
-  }, []);
+    if (!authLoading) {
+      if (!user) {
+        setError('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+        setLoading(false);
+      } else if (user.role !== 'admin') {
+        setError('Bạn không có quyền truy cập trang quản trị.');
+        setLoading(false);
+      } else {
+        loadPending();
+      }
+    }
+  }, [authLoading, user]);
 
   const loadPending = async () => {
     setLoading(true);
+    setError(null);
     try {
       const res = await adminAPI.getPending();
       setRecipes(res.data.data || []);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      const status = err?.response?.status;
+      if (status === 401) {
+        setError('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+      } else if (status === 403) {
+        setError('Bạn không có quyền truy cập trang quản trị.');
+      } else {
+        setError('Không tải được danh sách chờ duyệt. Vui lòng thử lại.');
+      }
       toast.error('Không tải được danh sách chờ duyệt');
     } finally {
       setLoading(false);
@@ -427,7 +449,7 @@ export default function AdminPendingPage() {
     [viewRecipe],
   );
 
-  if (loading) {
+  if (authLoading || (loading && !error)) {
     return (
       <div className="space-y-6">
         <h1 className="text-2xl font-bold text-gray-900">Bài đăng chờ duyệt</h1>
@@ -438,6 +460,26 @@ export default function AdminPendingPage() {
               className="h-32 bg-white rounded-2xl border border-gray-200 animate-pulse"
             />
           ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold text-gray-900">Bài đăng chờ duyệt</h1>
+        <div className="text-center py-16 bg-white rounded-2xl border border-gray-200 px-4">
+          <p className="text-5xl mb-4">⚠️</p>
+          <p className="text-lg font-medium text-gray-750">{error}</p>
+          {user?.role === 'admin' && (
+            <button
+              onClick={loadPending}
+              className="mt-6 px-6 py-2.5 bg-blue-650 text-white rounded-xl font-semibold hover:bg-blue-700 transition cursor-pointer text-sm shadow-sm"
+            >
+              Tải lại
+            </button>
+          )}
         </div>
       </div>
     );
@@ -458,7 +500,7 @@ export default function AdminPendingPage() {
         <div className="text-center py-16 bg-white rounded-2xl border border-gray-200">
           <p className="text-5xl mb-4">✅</p>
           <p className="text-lg font-medium text-gray-700">Tất cả đã được xử lý</p>
-          <p className="text-gray-500 mt-1">Không có bài đăng nào chờ duyệt</p>
+          <p className="text-gray-500 mt-1">Không có công thức chờ duyệt</p>
         </div>
       ) : (
         <div className="space-y-4">

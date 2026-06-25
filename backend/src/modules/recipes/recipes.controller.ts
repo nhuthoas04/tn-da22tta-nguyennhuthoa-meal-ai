@@ -9,6 +9,7 @@ import {
   UseGuards,
   Request,
   Body,
+  Header,
 } from '@nestjs/common';
 import { createHash } from 'crypto';
 import { AuthGuard } from '@nestjs/passport';
@@ -112,6 +113,7 @@ export class RecipesController {
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('admin')
+  @Header('Cache-Control', 'no-store')
   @Get('admin/pending')
   getPending(@Query('page') page?: number, @Query('limit') limit?: number) {
     return this.recipesService.getPending(page, limit);
