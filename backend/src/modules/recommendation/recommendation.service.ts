@@ -26,6 +26,9 @@ type RecommendationOptions = {
   weeklyUsedRecipeIds?: string[];
   previousDayRecipeIds?: string[];
   targetDate?: string;
+  mealTargetCalories?: number;
+  currentMealCalories?: number;
+  remainingMealCalories?: number;
   options?: {
     preferNewRecipes?: boolean;
     avoidRepeatLast7Days?: boolean;
@@ -109,7 +112,17 @@ export class RecommendationService {
     const calorieTarget = this.calorieService.getMealDistribution(
       user.dailyCalorieTarget,
     );
-    const targetForMeal = calorieTarget ? calorieTarget[mealType] || 700 : 700;
+    const targetForMeal = options.mealTargetCalories !== undefined && options.mealTargetCalories !== null
+      ? Number(options.mealTargetCalories)
+      : (calorieTarget ? calorieTarget[mealType] || 700 : 700);
+
+    const currentMealCalories = options.currentMealCalories !== undefined && options.currentMealCalories !== null
+      ? Number(options.currentMealCalories)
+      : 0;
+
+    const remainingMealCalories = options.remainingMealCalories !== undefined && options.remainingMealCalories !== null
+      ? Number(options.remainingMealCalories)
+      : Math.max(0, targetForMeal - currentMealCalories);
 
     // Get user's favorited recipe IDs for preference scoring
     const favorites = await this.favoriteRepo.find({ where: { userId } });
@@ -306,6 +319,28 @@ export class RecommendationService {
         aiOptions.avoidRepeatLast7Days,
       );
 
+      // Calculate calories score
+      const remainingCalories = remainingMealCalories;
+      const recipeCalories = Number(recipe.calories || 0);
+      let caloriesScoreVal = 0;
+      if (targetForMeal && targetForMeal > 0) {
+        if (!remainingCalories || remainingCalories <= 0) {
+          caloriesScoreVal = recipeCalories <= 150 ? 5 : -20;
+        } else {
+          const diff = Math.abs(remainingCalories - recipeCalories);
+          if (recipeCalories <= remainingCalories && diff <= 150) {
+            caloriesScoreVal = 20;
+          } else if (recipeCalories <= remainingCalories) {
+            caloriesScoreVal = 10;
+          } else if (recipeCalories <= remainingCalories * 1.2) {
+            caloriesScoreVal = 0;
+          } else {
+            caloriesScoreVal = -15;
+          }
+        }
+      }
+      const caloriesScoreAdjust = caloriesScoreVal / 100; // range from -0.20 to +0.20
+
       // Calculate dynamic diversity score adjustment
       let diversityScore = 0;
 
@@ -385,7 +420,8 @@ export class RecommendationService {
         habitAdjust +
         diversityScore +
         newRecipeBonus / 100 -
-        repeatPenalty / 100;
+        repeatPenalty / 100 +
+        caloriesScoreAdjust;
       total = Math.max(0, Math.min(1.0, unclampedTotal));
 
       // Generate human-readable reasons
@@ -395,6 +431,7 @@ export class RecommendationService {
         expiringItems,
         targetForMeal,
         habitAdjust,
+        caloriesScoreVal,
       );
 
       // Find which inventory items match and which are missing
@@ -742,6 +779,7 @@ export class RecommendationService {
     expiringItems: Inventory[],
     targetCalories: number,
     habitAdjust: number = 0,
+    caloriesScoreVal: number = 0,
   ): string[] {
     const reasons: string[] = [];
 
@@ -775,6 +813,11 @@ export class RecommendationService {
       );
     }
 
+    // Calorie rating reason
+    if (caloriesScoreVal >= 10) {
+      reasons.push('Lượng calo phù hợp với bữa ăn');
+    }
+
     // Preference reason
     if (scores.preferenceMatch > 0.6) {
       reasons.push('Phù hợp khẩu vị của bạn');
@@ -793,6 +836,21 @@ export class RecommendationService {
     }
 
     return reasons;
+  }
+
+  private calculateCaloriesScore(recipeCalories: number, remainingCalories: number | null): number {
+    if (remainingCalories === null || remainingCalories === undefined) return 0;
+    if (remainingCalories <= 0) {
+      return recipeCalories <= 150 ? 5 : -20;
+    }
+
+    const diff = Math.abs(remainingCalories - recipeCalories);
+
+    if (recipeCalories <= remainingCalories && diff <= 150) return 20;
+    if (recipeCalories <= remainingCalories) return 10;
+    if (recipeCalories <= remainingCalories * 1.2) return 0;
+
+    return -15;
   }
 
   /**

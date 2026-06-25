@@ -17,6 +17,7 @@ import {
 
 import RecipeImage from '@/components/RecipeImage';
 import MealLimitWarningModal from '@/components/MealLimitWarningModal';
+import AllergyWarningModal from '@/components/AllergyWarningModal';
 import { useAuth } from '@/context/AuthContext';
 import { favoritesAPI, mealPlanAPI, shoppingListAPI } from '@/lib/api';
 import { getMaxRecommendedDishes, getMealSlotLimit } from '@/lib/mealPortion';
@@ -48,6 +49,8 @@ type ApiError = {
     status?: number;
     data?: {
       message?: string;
+      type?: string;
+      matchedAllergens?: string[];
     };
   };
   message?: string;
@@ -120,6 +123,13 @@ export default function FavoritesPage() {
     weekStart: string;
     dayOfWeek: number;
   } | null>(null);
+
+  const [allergyWarningModal, setAllergyWarningModal] = useState<{
+    recipeName: string;
+    matchedAllergens: string[];
+    onConfirm: () => void | Promise<void>;
+  } | null>(null);
+  const [isAddingWithAllergy, setIsAddingWithAllergy] = useState(false);
 
   useEffect(() => {
     if (plannerModal.isOpen && selectedDate) {
@@ -278,6 +288,25 @@ export default function FavoritesPage() {
     setSelectedMeal(getFirstAvailableMeal(defaultDate));
   };
 
+  const getUserServings = () => {
+    const servings = Number((user as any)?.preferences?.servings);
+    return Number.isInteger(servings) && servings >= 1 && servings <= 20 ? servings : null;
+  };
+
+  const addFavoriteRecipeToMealPlan = async (weekStart: string, dayOfWeek: number, forceAdd = false) => {
+    await mealPlanAPI.setMealSlot({
+      weekStart,
+      dayOfWeek,
+      mealDate: selectedDate,
+      mealType: selectedMeal,
+      recipeId: plannerModal.recipeId,
+      forceAdd,
+    });
+    toast.success('Đã thêm món vào thực đơn.');
+    closePlannerModal();
+    setAllergyWarningModal(null);
+  };
+
   const handleAddToMealPlan = async () => {
     if (isPastMealDate(selectedDate)) {
       toast.error('Không thể thêm món vào ngày đã qua.');
@@ -346,40 +375,67 @@ export default function FavoritesPage() {
       await addFavoriteRecipeToMealPlan(weekStart, dayOfWeek);
     } catch (err: unknown) {
       const error = err as ApiError;
-      toast.error(error.response?.data?.message || 'Không thể thêm vào thực đơn');
+      if (error.response?.data?.type === 'ALLERGY_WARNING') {
+        const recipeName = plannerModal.recipeName || 'Món ăn';
+        const matchedAllergens = error.response.data.matchedAllergens || [];
+        setAllergyWarningModal({
+          recipeName,
+          matchedAllergens,
+          onConfirm: async () => {
+            setIsAddingWithAllergy(true);
+            try {
+              await addFavoriteRecipeToMealPlan(weekStart, dayOfWeek, true);
+            } catch (innerErr: unknown) {
+              const innerError = innerErr as ApiError;
+              toast.error(innerError.response?.data?.message || 'Không thể thêm vào thực đơn');
+            } finally {
+              setIsAddingWithAllergy(false);
+            }
+          }
+        });
+      } else {
+        toast.error(error.response?.data?.message || 'Không thể thêm vào thực đơn');
+      }
     } finally {
       setSubmittingMealPlan(false);
     }
   };
 
-  const getUserServings = () => {
-    const servings = Number((user as any)?.preferences?.servings);
-    return Number.isInteger(servings) && servings >= 1 && servings <= 20 ? servings : null;
-  };
 
-  const addFavoriteRecipeToMealPlan = async (weekStart: string, dayOfWeek: number) => {
-    await mealPlanAPI.setMealSlot({
-      weekStart,
-      dayOfWeek,
-      mealDate: selectedDate,
-      mealType: selectedMeal,
-      recipeId: plannerModal.recipeId,
-    });
-    toast.success('Đã thêm món vào thực đơn.');
-    closePlannerModal();
-  };
 
   const confirmPortionWarning = async () => {
     if (!portionWarning) return;
     setSubmittingMealPlan(true);
+    const { weekStart, dayOfWeek } = portionWarning;
     try {
-      await addFavoriteRecipeToMealPlan(portionWarning.weekStart, portionWarning.dayOfWeek);
+      await addFavoriteRecipeToMealPlan(weekStart, dayOfWeek);
+      setPortionWarning(null);
     } catch (err: unknown) {
       const error = err as ApiError;
-      toast.error(error.response?.data?.message || 'Không thể thêm vào thực đơn');
+      if (error.response?.data?.type === 'ALLERGY_WARNING') {
+        const recipeName = plannerModal.recipeName || 'Món ăn';
+        const matchedAllergens = error.response.data.matchedAllergens || [];
+        setAllergyWarningModal({
+          recipeName,
+          matchedAllergens,
+          onConfirm: async () => {
+            setIsAddingWithAllergy(true);
+            try {
+              await addFavoriteRecipeToMealPlan(weekStart, dayOfWeek, true);
+              setPortionWarning(null);
+            } catch (innerErr: unknown) {
+              const innerError = innerErr as ApiError;
+              toast.error(innerError.response?.data?.message || 'Không thể thêm vào thực đơn');
+            } finally {
+              setIsAddingWithAllergy(false);
+            }
+          }
+        });
+      } else {
+        toast.error(error.response?.data?.message || 'Không thể thêm vào thực đơn');
+      }
     } finally {
       setSubmittingMealPlan(false);
-      setPortionWarning(null);
     }
   };
 
@@ -703,6 +759,16 @@ export default function FavoritesPage() {
           onCancel={() => setPortionWarning(null)}
           onConfirm={confirmPortionWarning}
           isSubmitting={submittingMealPlan}
+        />
+      )}
+
+      {allergyWarningModal && (
+        <AllergyWarningModal
+          recipeName={allergyWarningModal.recipeName}
+          matchedAllergens={allergyWarningModal.matchedAllergens}
+          onCancel={() => setAllergyWarningModal(null)}
+          onConfirm={allergyWarningModal.onConfirm}
+          isSubmitting={isAddingWithAllergy}
         />
       )}
     </div>

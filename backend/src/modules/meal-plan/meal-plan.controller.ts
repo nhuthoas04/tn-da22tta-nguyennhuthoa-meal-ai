@@ -80,6 +80,7 @@ export class MealPlanController {
       recipeId?: string;
       recipeIds?: string[];
       overwrite?: boolean;
+      forceAdd?: boolean;
     },
   ) {
     let mealDate = dto.mealDate;
@@ -98,6 +99,7 @@ export class MealPlanController {
         dto.mealType,
         dto.recipeIds,
         dto.overwrite,
+        dto.forceAdd,
       );
     }
     if (!dto.recipeId) {
@@ -109,6 +111,7 @@ export class MealPlanController {
       dto.mealType,
       dto.recipeId,
       dto.overwrite,
+      dto.forceAdd,
     );
   }
 
@@ -154,6 +157,14 @@ export class MealPlanController {
       useAntiWaste?: boolean;
       mealType?: string;
       mealTypes?: string[];
+      mealCalorieTargets?: Record<
+        string,
+        {
+          targetCalories?: number;
+          currentCalories?: number;
+          remainingCalories?: number;
+        }
+      >;
       overwrite?: boolean;
       optimizePortions?: boolean;
       options?: {
@@ -176,9 +187,15 @@ export class MealPlanController {
     @Request() req,
     @Param('id') id: string,
     @Param('itemId') itemId: string,
-    @Body('recipeId') recipeId: string,
+    @Body() dto: { recipeId: string; forceAdd?: boolean },
   ) {
-    return this.mealPlanService.swapRecipe(req.user.id, id, itemId, recipeId);
+    return this.mealPlanService.swapRecipe(
+      req.user.id,
+      id,
+      itemId,
+      dto.recipeId,
+      dto.forceAdd,
+    );
   }
 
   @Delete(':id/items/:itemId')

@@ -197,13 +197,13 @@ export const mealPlanAPI = {
             mutation: 'generate-days',
             weekStart: data.weekStart,
         }),
-    setMealSlot: (data: { weekStart?: string; dayOfWeek?: number; mealDate?: string; mealType: string; recipeId?: string; recipeIds?: string[]; overwrite?: boolean }) =>
+    setMealSlot: (data: { weekStart?: string; dayOfWeek?: number; mealDate?: string; mealType: string; recipeId?: string; recipeIds?: string[]; overwrite?: boolean; forceAdd?: boolean }) =>
         invalidateMealPlanAfter(api.put('/meal-plans/slot', data), {
             mutation: 'set-slot',
             weekStart: data.weekStart,
         }),
-    swapRecipe: (planId: string, itemId: string, recipeId: string) =>
-        invalidateMealPlanAfter(api.put(`/meal-plans/${planId}/items/${itemId}`, { recipeId }), {
+    swapRecipe: (planId: string, itemId: string, recipeId: string, forceAdd?: boolean) =>
+        invalidateMealPlanAfter(api.put(`/meal-plans/${planId}/items/${itemId}`, { recipeId, forceAdd }), {
             mutation: 'swap-recipe',
             planId,
         }),

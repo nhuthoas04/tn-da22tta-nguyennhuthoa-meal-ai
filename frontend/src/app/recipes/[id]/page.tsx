@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import { HiClock, HiFire, HiHeart, HiOutlineHeart, HiUsers, HiArrowLeft, HiCalendar, HiX, HiStar } from 'react-icons/hi';
 import Link from 'next/link';
 import RecipeImage from '@/components/RecipeImage';
+import AllergyWarningModal from '@/components/AllergyWarningModal';
 
 const MEAL_OPTIONS = [
   {
@@ -53,6 +54,12 @@ export default function RecipeDetailPage() {
   const [selectedDate, setSelectedDate] = useState(() => formatDateInput(new Date()));
   const [selectedMeal, setSelectedMeal] = useState('breakfast');
   const [submitting, setSubmitting] = useState(false);
+  const [allergyWarningModal, setAllergyWarningModal] = useState<{
+    recipeName: string;
+    matchedAllergens: string[];
+    onConfirm: () => void | Promise<void>;
+  } | null>(null);
+  const [isAddingWithAllergy, setIsAddingWithAllergy] = useState(false);
 
   useEffect(() => {
     if (planSelectorOpen && selectedDate) {
@@ -312,7 +319,7 @@ export default function RecipeDetailPage() {
     setPlanSelectorOpen(true);
   };
 
-  const handleAddToPlan = async () => {
+  const handleAddToPlan = async (forceAdd = false) => {
     if (!user) {
       toast.error('Vui lòng đăng nhập để thực hiện');
       return;
@@ -330,27 +337,46 @@ export default function RecipeDetailPage() {
     const targetWeekStart = getMonday(parseDateInput(selectedDate));
     const targetDayOfWeek = getMealPlanDay(parseDateInput(selectedDate));
 
-    setSubmitting(true);
+    if (forceAdd) {
+      setIsAddingWithAllergy(true);
+    } else {
+      setSubmitting(true);
+    }
     try {
       await mealPlanAPI.setMealSlot({
         weekStart: targetWeekStart,
         dayOfWeek: targetDayOfWeek,
         mealType: selectedMeal,
         recipeId: recipe.id,
+        forceAdd,
       });
       toast.success(`Đã thêm "${recipe.name}" vào thực đơn thành công!`);
       setPlanSelectorOpen(false);
+      setAllergyWarningModal(null);
       const params = new URLSearchParams({
         weekStart: targetWeekStart,
         day: String(targetDayOfWeek),
         meal: selectedMeal,
       });
       router.push(`/meal-planner?${params.toString()}`);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      toast.error('Không thể thêm món ăn vào thực đơn');
+      if (err.response?.data?.type === 'ALLERGY_WARNING') {
+        const recipeName = recipe.name || 'Món ăn';
+        const matchedAllergens = err.response.data.matchedAllergens || [];
+        setAllergyWarningModal({
+          recipeName,
+          matchedAllergens,
+          onConfirm: async () => {
+            await handleAddToPlan(true);
+          }
+        });
+      } else {
+        toast.error('Không thể thêm món ăn vào thực đơn');
+      }
     } finally {
       setSubmitting(false);
+      setIsAddingWithAllergy(false);
     }
   };
 
@@ -911,7 +937,7 @@ export default function RecipeDetailPage() {
               </button>
               <button
                 type="button"
-                onClick={handleAddToPlan}
+                onClick={() => handleAddToPlan()}
                 disabled={submitting}
                 className="btn-primary"
               >
@@ -920,6 +946,16 @@ export default function RecipeDetailPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {allergyWarningModal && (
+        <AllergyWarningModal
+          recipeName={allergyWarningModal.recipeName}
+          matchedAllergens={allergyWarningModal.matchedAllergens}
+          onCancel={() => setAllergyWarningModal(null)}
+          onConfirm={allergyWarningModal.onConfirm}
+          isSubmitting={isAddingWithAllergy}
+        />
       )}
     </div>
   );

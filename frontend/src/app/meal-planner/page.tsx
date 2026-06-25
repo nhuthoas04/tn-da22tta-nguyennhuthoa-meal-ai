@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { HiChevronLeft, HiChevronRight, HiOutlineTrash, HiOutlineDownload, HiSparkles } from 'react-icons/hi';
 import { useAuth } from '@/context/AuthContext';
 import MealLimitWarningModal from '@/components/MealLimitWarningModal';
+import AllergyWarningModal from '@/components/AllergyWarningModal';
 import api, { mealPlanAPI, recipesAPI, shoppingListAPI, recommendationAPI } from '@/lib/api';
 import { calculateMealPortionWarning, getMaxRecommendedDishes, getMaxDishesByServings, getMealSlotLimit, MealPortionWarningResult } from '@/lib/mealPortion';
 
@@ -60,6 +61,13 @@ export default function MealPlannerPage() {
     mealType: string;
     itemId?: string | null;
   } | null>(null);
+
+  const [allergyWarningModal, setAllergyWarningModal] = useState<{
+    recipeName: string;
+    matchedAllergens: string[];
+    onConfirm: () => void | Promise<void>;
+  } | null>(null);
+  const [isAddingWithAllergy, setIsAddingWithAllergy] = useState(false);
 
   useEffect(() => {
     if (user) loadPlan();
@@ -471,11 +479,19 @@ export default function MealPlannerPage() {
     } catch { } finally { setSearchingRecipes(false); }
   };
 
-  const executeSelectRecipe = async (recipeId: string, dateStr: string, day: number, mealType: string, itemId: string | null, selectedRecipe: any) => {
+  const executeSelectRecipe = async (
+    recipeId: string,
+    dateStr: string,
+    day: number,
+    mealType: string,
+    itemId: string | null,
+    selectedRecipe: any,
+    forceAdd = false
+  ) => {
     try {
       let nextPlan = null;
       if (plan && itemId) {
-        const res = await mealPlanAPI.swapRecipe(plan.id, itemId, recipeId);
+        const res = await mealPlanAPI.swapRecipe(plan.id, itemId, recipeId, forceAdd);
         const updatedPlan = {
           ...plan,
           items: plan.items.map((item: any) =>
@@ -500,7 +516,7 @@ export default function MealPlannerPage() {
         applyPlanUpdateKeepingScroll(updatedPlan);
         toast.success('Đã cập nhật món ăn thành công!');
       } else {
-        const res = await mealPlanAPI.setMealSlot({ weekStart, dayOfWeek: day, mealDate: dateStr, mealType: mealType, recipeId });
+        const res = await mealPlanAPI.setMealSlot({ weekStart, dayOfWeek: day, mealDate: dateStr, mealType: mealType, recipeId, forceAdd });
         nextPlan = res.data;
         applyPlanUpdateKeepingScroll(res.data);
         toast.success('Đã chọn món ăn thành công!');
@@ -519,7 +535,22 @@ export default function MealPlannerPage() {
           toast.error(warning.message || 'Bạn đã vượt số lượng món khuyến nghị cho số người ăn hiện tại.', { duration: 5000 });
         }
       }
-    } catch { toast.error('Không thể cập nhật món ăn'); }
+    } catch (err: any) {
+      if (err.response?.data?.type === 'ALLERGY_WARNING') {
+        const recipeName = selectedRecipe?.name || 'Món ăn';
+        const matchedAllergens = err.response.data.matchedAllergens || [];
+        setAllergyWarningModal({
+          recipeName,
+          matchedAllergens,
+          onConfirm: async () => {
+            await executeSelectRecipe(recipeId, dateStr, day, mealType, itemId, selectedRecipe, true);
+            setAllergyWarningModal(null);
+          }
+        });
+      } else {
+        toast.error('Không thể cập nhật món ăn');
+      }
+    }
   };
 
   const handleSelectRecipe = async (recipeId: string) => {
@@ -558,7 +589,7 @@ export default function MealPlannerPage() {
     executeSelectRecipe(recipeId, dateStr, selectedSlot.day, selectedSlot.mealType, selectedSlot.itemId, selectedRecipe);
   };
 
-  const executeAddSelectedRecipes = async (recipeIds: string[], dateStr: string, day: number, mealType: string) => {
+  const executeAddSelectedRecipes = async (recipeIds: string[], dateStr: string, day: number, mealType: string, forceAdd = false) => {
     try {
       const res = await mealPlanAPI.setMealSlot({
         weekStart,
@@ -566,6 +597,7 @@ export default function MealPlannerPage() {
         mealDate: dateStr,
         mealType: mealType,
         recipeIds: recipeIds,
+        forceAdd,
       });
 
       applyPlanUpdateKeepingScroll(res.data);
@@ -582,7 +614,25 @@ export default function MealPlannerPage() {
       if (warning.shouldWarn) {
         toast.error(warning.message || 'Bạn đã vượt số lượng món khuyến nghị cho số người ăn hiện tại.', { duration: 5000 });
       }
-    } catch { toast.error('Không thể cập nhật món ăn'); }
+    } catch (err: any) {
+      if (err.response?.data?.type === 'ALLERGY_WARNING') {
+        const selectedNames = recipeIds.map(id => {
+          const r = searchResults.find((x: any) => x.id === id);
+          return r ? r.name : 'Món ăn';
+        }).join(', ');
+        const matchedAllergens = err.response.data.matchedAllergens || [];
+        setAllergyWarningModal({
+          recipeName: selectedNames,
+          matchedAllergens,
+          onConfirm: async () => {
+            await executeAddSelectedRecipes(recipeIds, dateStr, day, mealType, true);
+            setAllergyWarningModal(null);
+          }
+        });
+      } else {
+        toast.error('Không thể cập nhật món ăn');
+      }
+    }
   };
 
   const handleAddSelectedRecipes = async () => {
@@ -1207,6 +1257,17 @@ export default function MealPlannerPage() {
                 await executeSelectRecipe(info.recipeId, info.dateStr, info.day, info.mealType, info.itemId || null, selectedRecipe);
               }
             }}
+          />
+        )}
+
+        {/* Allergy Warning Modal */}
+        {allergyWarningModal && (
+          <AllergyWarningModal
+            recipeName={allergyWarningModal.recipeName}
+            matchedAllergens={allergyWarningModal.matchedAllergens}
+            onCancel={() => setAllergyWarningModal(null)}
+            onConfirm={allergyWarningModal.onConfirm}
+            isSubmitting={isAddingWithAllergy}
           />
         )}
 

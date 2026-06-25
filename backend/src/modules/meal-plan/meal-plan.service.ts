@@ -1,8 +1,9 @@
-﻿import {
+import {
   BadRequestException,
   Injectable,
   NotFoundException,
   Logger,
+  HttpException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
@@ -20,6 +21,7 @@ import {
   getMaxDishesByServings,
 } from './meal-portion.util';
 import { selectRecipesAvoidingRepeats } from './meal-repeat.util';
+import { checkRecipeAllergens } from './allergy.util';
 
 type AiMealOptions = {
   preferNewRecipes?: boolean;
@@ -461,6 +463,13 @@ export class MealPlanService {
           remainingDailyCapacity,
         );
 
+        const calorieTarget = this.calorieService.getMealDistribution(user?.dailyCalorieTarget || 2000);
+        const recTarget = calorieTarget ? calorieTarget[mealType] || 700 : 700;
+        const recCurrent = dayItemsList
+          .filter((item) => item.mealType === mealType && item.recipe)
+          .reduce((sum, item) => sum + Number(item.recipe?.calories || item.calories || 0), 0);
+        const recRemaining = Math.max(0, recTarget - recCurrent);
+
         // Use AI to get recommendations for this slot
         const recs = await this.recommendationService.getRecommendations(
           userId,
@@ -479,6 +488,9 @@ export class MealPlanService {
             recentSuggestedNames: recentSuggestedRecipes,
             weeklyUsedRecipeIds: Array.from(usedRecipeIds),
             previousDayRecipeIds,
+            mealTargetCalories: recTarget,
+            currentMealCalories: recCurrent,
+            remainingMealCalories: recRemaining,
           },
         );
         this.logRepeatDebug(
@@ -572,6 +584,13 @@ export class MealPlanService {
             continue;
           }
 
+          const calorieTarget = this.calorieService.getMealDistribution(user?.dailyCalorieTarget || 2000);
+          const recTarget = calorieTarget ? calorieTarget[mealType] || 700 : 700;
+          const recCurrent = dayItemsList
+            .filter((item) => item.mealType === mealType && item.recipe)
+            .reduce((sum, item) => sum + Number(item.recipe?.calories || item.calories || 0), 0);
+          const recRemaining = Math.max(0, recTarget - recCurrent);
+
           const recs = await this.recommendationService.getRecommendations(
             userId,
             mealType,
@@ -589,6 +608,9 @@ export class MealPlanService {
               recentSuggestedNames: recentSuggestedRecipes,
               weeklyUsedRecipeIds: Array.from(usedRecipeIds),
               previousDayRecipeIds,
+              mealTargetCalories: recTarget,
+              currentMealCalories: recCurrent,
+              remainingMealCalories: recRemaining,
             },
           );
           this.logRepeatDebug(
@@ -706,7 +728,9 @@ export class MealPlanService {
     planId: string,
     itemId: string,
     recipeId: string,
+    forceAdd = false,
   ) {
+    await this.checkAllergens(userId, recipeId, forceAdd);
     const item = await this.itemRepo.findOne({
       where: { id: itemId, mealPlanId: planId },
     });
@@ -764,6 +788,52 @@ export class MealPlanService {
     };
   }
 
+  private async checkAllergens(
+    userId: string,
+    recipeId: string,
+    forceAdd = false,
+  ): Promise<void> {
+    if (forceAdd) {
+      return;
+    }
+
+    // 1. Fetch user preference allergies
+    const user = await this.userRepo.findOne({
+      where: { id: userId },
+      relations: ['preferences'],
+    });
+    const userAllergies = user?.preferences?.allergies || [];
+    if (userAllergies.length === 0) {
+      return;
+    }
+
+    // 2. Fetch recipe ingredients
+    const recipe = await this.recipeRepo.findOne({
+      where: { id: recipeId },
+      relations: ['recipeIngredients', 'recipeIngredients.ingredient'],
+    });
+    if (!recipe) {
+      return;
+    }
+
+    const recipeIngredients = (recipe.recipeIngredients || []).map((ri) => ({
+      name: ri.ingredient?.name || '',
+    }));
+
+    const matchedAllergens = checkRecipeAllergens(recipeIngredients, userAllergies);
+    if (matchedAllergens.length > 0) {
+      throw new HttpException(
+        {
+          warning: true,
+          type: 'ALLERGY_WARNING',
+          message: `Món ăn này có chứa nguyên liệu có thể gây dị ứng cho bạn: ${matchedAllergens.join(', ')}`,
+          matchedAllergens,
+        },
+        400,
+      );
+    }
+  }
+
   /**
    * Add or update a specific meal slot in a plan by day and mealType
    */
@@ -773,7 +843,9 @@ export class MealPlanService {
     mealType: string,
     recipeId: string,
     overwrite = false,
+    forceAdd = false,
   ) {
+    await this.checkAllergens(userId, recipeId, forceAdd);
     const targetDate = this.parseDateInput(mealDate);
     this.ensureMealSlotIsCreatable(targetDate, mealType);
     const startDate = this.getMonday(targetDate);
@@ -842,10 +914,17 @@ export class MealPlanService {
     mealType: string,
     recipeIds: string[],
     overwrite = false,
+    forceAdd = false,
   ) {
     const uniqueRecipeIds = Array.from(new Set(recipeIds.filter(Boolean)));
     if (uniqueRecipeIds.length === 0) {
       throw new BadRequestException('Vui lòng chọn ít nhất một món ăn');
+    }
+
+    if (!forceAdd) {
+      for (const recipeId of uniqueRecipeIds) {
+        await this.checkAllergens(userId, recipeId, forceAdd);
+      }
     }
 
     let result = null;
@@ -856,6 +935,7 @@ export class MealPlanService {
         mealType,
         recipeId,
         overwrite && index === 0,
+        true,
       );
     }
 
