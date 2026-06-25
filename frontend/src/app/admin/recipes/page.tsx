@@ -8,7 +8,17 @@ import {
   HiPlus, HiPencil, HiTrash, HiSearch, HiClock, HiFire, HiEye, HiX, HiUser,
 } from 'react-icons/hi';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace('/api/v1', '') || 'http://localhost:3001';
+const getFallbackApiBase = () => {
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    if (host !== 'localhost' && host !== '127.0.0.1') {
+      return 'https://tn-da22tta-nguyennhuthoa-meal-ai-backend.onrender.com';
+    }
+  }
+  return 'http://localhost:3001';
+};
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace('/api/v1', '') || getFallbackApiBase();
 
 export default function AdminRecipesPage() {
   const searchParams = useSearchParams();

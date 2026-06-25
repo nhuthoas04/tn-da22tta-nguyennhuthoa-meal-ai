@@ -4,7 +4,17 @@ import { uploadAPI } from '@/lib/api';
 import { HiPhotograph, HiX } from 'react-icons/hi';
 import toast from 'react-hot-toast';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace('/api/v1', '') || 'http://localhost:3001';
+const getFallbackApiBase = () => {
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    if (host !== 'localhost' && host !== '127.0.0.1') {
+      return 'https://tn-da22tta-nguyennhuthoa-meal-ai-backend.onrender.com';
+    }
+  }
+  return 'http://localhost:3001';
+};
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace('/api/v1', '') || getFallbackApiBase();
 
 interface ImageUploadProps {
   value: string;
