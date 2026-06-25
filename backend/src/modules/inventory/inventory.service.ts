@@ -116,6 +116,27 @@ export class InventoryService {
 
     this.validateDates(purchaseDate, expirationDate);
 
+    const mergeCandidate = await this.findMergeCandidate(
+      userId,
+      dto.ingredientId,
+      dto.unit.trim(),
+      expirationDate,
+    );
+    if (mergeCandidate) {
+      mergeCandidate.quantity = Number(mergeCandidate.quantity || 0) + quantity;
+      mergeCandidate.initialQuantity = Number(mergeCandidate.initialQuantity || 0) + quantity;
+      if (dto.notes) mergeCandidate.notes = dto.notes;
+      const saved = await this.inventoryRepo.save(mergeCandidate);
+      const mapped = this.mapInventoryItem(saved, []);
+      return {
+        ...mapped,
+        wasMerged: true,
+        addedQuantity: this.roundQuantity(quantity),
+        totalQuantity: mapped.quantity,
+        message: `Đã cập nhật ${ingredient.name} trong tủ lạnh: thêm ${this.formatQuantity(quantity)}${dto.unit.trim()}, tổng hiện có ${this.formatQuantity(mapped.quantity)}${mapped.unit}.`,
+      };
+    }
+
     const item = this.inventoryRepo.create({
       userId,
       ingredientId: dto.ingredientId,
@@ -133,7 +154,14 @@ export class InventoryService {
       relations: ['ingredient'],
     });
 
-    return this.mapInventoryItem(fullItem, []);
+    const mapped = this.mapInventoryItem(fullItem, []);
+    return {
+      ...mapped,
+      wasMerged: false,
+      addedQuantity: this.roundQuantity(quantity),
+      totalQuantity: mapped.quantity,
+      message: `Đã thêm ${ingredient.name} ${this.formatQuantity(quantity)}${dto.unit.trim()} vào tủ lạnh.`,
+    };
   }
 
   async update(
@@ -203,15 +231,25 @@ export class InventoryService {
   }
 
   async searchIngredients(q: string, category?: string) {
+    const query = (q || '').trim();
     const qb = this.ingredientRepo
       .createQueryBuilder('ing')
-      .where('LOWER(ing.name) LIKE LOWER(:q)', { q: `%${q}%` });
+      .where('LOWER(ing.name) LIKE LOWER(:q)', { q: `%${query}%` });
 
     if (category) {
       qb.andWhere('ing.category = :category', { category });
     }
 
-    const data = await qb.limit(10).getMany();
+    let data = await qb.limit(10).getMany();
+    if (query && data.length === 0) {
+      const normalizedQuery = this.normalizeText(query);
+      const candidates = await this.ingredientRepo.find();
+      data = candidates
+        .filter((ingredient) =>
+          this.normalizeText(ingredient.name).includes(normalizedQuery),
+        )
+        .slice(0, 10);
+    }
 
     return {
       data: data.map((i) => ({
@@ -325,6 +363,42 @@ export class InventoryService {
     }
   }
 
+  private async findMergeCandidate(
+    userId: string,
+    ingredientId: string,
+    unit: string,
+    expirationDate: Date | null,
+  ) {
+    const candidates = await this.inventoryRepo.find({
+      where: { userId, ingredientId, unit },
+      relations: ['ingredient'],
+    });
+    const targetExpiration = expirationDate
+      ? this.formatDateInput(this.startOfDay(expirationDate))
+      : null;
+    return candidates.find((item) => {
+      const itemExpiration = item.expirationDate
+        ? this.formatDateInput(this.startOfDay(new Date(item.expirationDate)))
+        : null;
+      return itemExpiration === targetExpiration;
+    });
+  }
+
+  private normalizeText(value: string) {
+    return value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd')
+      .replace(/Đ/g, 'D')
+      .toLowerCase()
+      .trim();
+  }
+
+  private formatQuantity(value: number) {
+    const rounded = this.roundQuantity(value);
+    return Number.isInteger(rounded) ? String(rounded) : String(rounded);
+  }
+
   private getStatus(item: Inventory, today: Date): InventoryStatus {
     const remaining = Number(item.quantity || 0);
     if (remaining <= 0) return 'used_up';
@@ -391,6 +465,13 @@ export class InventoryService {
       throw new BadRequestException('Ngày không hợp lệ.');
     }
     return this.startOfDay(new Date(year, month - 1, day));
+  }
+
+  private formatDateInput(date: Date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
   private addDays(date: Date, days: number) {

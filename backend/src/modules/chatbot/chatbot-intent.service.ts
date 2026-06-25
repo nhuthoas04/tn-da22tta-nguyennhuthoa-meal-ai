@@ -43,8 +43,8 @@ export class ChatbotIntentService {
       return matched('NAVIGATE_PAGE', 0.99);
     }
     if (
-      this.hasAny(text, ['them vao tu lanh', 'toi vua mua', 'tu lanh co']) &&
-      entities.quantity
+      this.isAddInventoryRequest(text) &&
+      (entities.quantity || this.hasAny(text, ['tu lanh', 'kho', 'nguyen lieu']))
     ) {
       return matched('ADD_INVENTORY_ITEM', 0.98);
     }
@@ -194,22 +194,25 @@ export class ChatbotIntentService {
     entities.ingredients = this.extractIngredients(original, text);
     entities.route = this.parseRoute(text);
 
-    const amount = text.match(/(\d+(?:[.,]\d+)?)\s*(kg|g|gram|lit|l|ml|qua|hop|goi|chai|bo|muong)/);
+    const amount = text.match(/(\d+(?:[.,]\d+)?)\s*(kg|g|gram|lit|l|ml|qua|cu|hop|goi|chai|bo|lon|cai|muong)/);
     if (amount) {
-      let quantity = Number(amount[1].replace(',', '.'));
+      const quantity = Number(amount[1].replace(',', '.'));
       let unit = amount[2];
-      if (unit === 'kg') {
-        quantity *= 1000;
-        unit = 'g';
-      }
       if (unit === 'lit') unit = 'l';
       entities.quantity = quantity;
       entities.unit = unit;
-      entities.inventoryQuery = this.extractInventoryItemName(original);
+      entities.inventoryQuery = this.extractInventoryItemName(text);
     }
 
+    if (!entities.inventoryQuery && this.isAddInventoryRequest(text)) {
+      entities.inventoryQuery = this.extractInventoryItemName(text);
+    }
+
+    const expiryDate = this.parseExpirationDate(text);
     const expiry = text.match(/han (?:dung|su dung)?\s*(\d{1,3})\s*ngay/);
-    if (expiry) {
+    if (expiryDate) {
+      entities.expirationDate = expiryDate;
+    } else if (expiry) {
       entities.expirationDate = this.formatDate(this.addDays(new Date(), Number(expiry[1])));
     }
 
@@ -287,11 +290,45 @@ export class ChatbotIntentService {
     return values.length ? values : undefined;
   }
 
-  private extractInventoryItemName(original: string): string | undefined {
-    const match = original.match(/\d+(?:[.,]\d+)?\s*(?:kg|g|gram|lít|lit|l|ml|quả|hộp|gói|chai|bó|muỗng)\s+(.+?)(?:\s+vào\s+tủ lạnh|\s+hạn|$)/iu);
-    return match ? match[1].trim() : undefined;
+  private extractInventoryItemName(text: string): string | undefined {
+    const unitPattern = '(?:kg|g|gram|lit|l|ml|qua|cu|hop|goi|chai|bo|lon|cai|muong)';
+    const stopPattern = '(?:\\s+han\\b.+)?(?:\\s+vao\\s+(?:tu\\s+lanh|kho)|$)';
+    const beforeAmount = new RegExp(
+      `^(?:them|cho|bo)\\s+(?:nguyen\\s+lieu\\s+)?(.+?)\\s+\\d+(?:[.,]\\d+)?\\s*${unitPattern}${stopPattern}`,
+    );
+    const afterAmount = new RegExp(
+      `^(?:them|cho|bo)?\\s*\\d+(?:[.,]\\d+)?\\s*${unitPattern}\\s+(.+?)${stopPattern}`,
+    );
+    const fridgeHas = new RegExp(
+      `^tu\\s+lanh\\s+co\\s+\\d+(?:[.,]\\d+)?\\s*${unitPattern}\\s+(.+?)(?:\\s+han\\b.+)?$`,
+    );
+    const noAmount = /^(?:them|cho|bo)\s+(?:nguyen\s+lieu\s+)?(.+?)(?:\s+vao\s+(?:tu\s+lanh|kho)|$)/;
+    const match = beforeAmount.exec(text) || afterAmount.exec(text) || fridgeHas.exec(text) || noAmount.exec(text);
+    return match ? this.cleanInventoryName(match[1]) : undefined;
   }
 
+  private cleanInventoryName(value: string): string | undefined {
+    const cleaned = value
+      .replace(/\bhan\b.+$/u, '')
+      .replace(/\bvao\s+(?:tu\s+lanh|kho).*$/u, '')
+      .replace(/^nguyen\s+lieu\s+/u, '')
+      .trim();
+    return cleaned || undefined;
+  }
+
+  private isAddInventoryRequest(text: string): boolean {
+    return (
+      /^(?:them|cho|bo)\b/.test(text) &&
+        this.hasAny(text, ['tu lanh', 'vao kho', 'nguyen lieu'])
+    ) || text.includes('tu lanh co');
+  }
+
+  private parseExpirationDate(text: string): string | undefined {
+    const match = text.match(/han(?: dung| su dung)?\s+(\d{1,2})[\/-](\d{1,2})(?:[\/-](20\d{2}))?/);
+    if (!match) return undefined;
+    const year = match[3] || String(new Date().getFullYear());
+    return `${year}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}`;
+  }
   private parseMealType(original: string, text: string): ChatbotEntities['mealType'] {
     const originalLower = original.toLowerCase();
     const hasVietnameseDinnerWord = /\btối\b/iu.test(originalLower);

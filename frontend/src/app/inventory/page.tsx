@@ -35,6 +35,13 @@ export default function InventoryPage() {
     }
   }, [user]);
 
+  useEffect(() => {
+    if (!user) return;
+    const handleInventoryUpdated = () => loadInventory();
+    window.addEventListener('inventory-updated', handleInventoryUpdated);
+    return () => window.removeEventListener('inventory-updated', handleInventoryUpdated);
+  }, [user]);
+
   const loadInventory = async () => {
     try {
       const res = await inventoryAPI.getAll();

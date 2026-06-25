@@ -311,7 +311,21 @@ export default function ChatWidget() {
           }, 1200);
         } else if (otherMutativeActions.includes(actionTaken.name)) {
           toast.success('AI đã cập nhật dữ liệu thành công!', { icon: '🤖', duration: 2000 });
+          if (actionTaken.name === 'add_to_inventory' && typeof window !== 'undefined') {
+            window.dispatchEvent(
+              new CustomEvent('inventory-updated', {
+                detail: {
+                  source: 'chatbot',
+                  mutation: actionTaken.name,
+                  updatedAt: Date.now(),
+                },
+              }),
+            );
+          }
           setTimeout(() => {
+            if (typeof window !== 'undefined' && window.location.pathname.startsWith('/inventory')) {
+              return;
+            }
             window.location.reload();
           }, 1500);
         }

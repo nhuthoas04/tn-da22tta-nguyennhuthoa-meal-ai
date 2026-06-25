@@ -61,13 +61,20 @@ export class ChatbotCommandService {
 
     if (context.pendingQuestion) {
       const followUp = this.intentService.extractEntities(message, undefined, context);
+      if (
+        context.pendingQuestion.intent === 'ADD_INVENTORY_ITEM' &&
+        context.pendingQuestion.missing === 'recipe' &&
+        !followUp.inventoryQuery
+      ) {
+        followUp.inventoryQuery = this.normalize(message);
+      }
       const merged = { ...context.pendingQuestion.entities, ...followUp };
       const missing = context.pendingQuestion.missing;
       const isAnswered =
         (missing === 'date' && !!merged.date) ||
         (missing === 'mealType' && !!merged.mealType) ||
         (missing === 'quantity' && !!merged.quantity) ||
-        (missing === 'recipe' && !!(merged.recipeId || merged.recipeName));
+        (missing === 'recipe' && !!(merged.recipeId || merged.recipeName || merged.inventoryQuery));
       if (isAnswered) {
         return this.processKnownIntent(
           userId,
@@ -518,7 +525,7 @@ export class ChatbotCommandService {
     }
     if (intent === 'ADD_INVENTORY_ITEM') {
       if (!entities.quantity) {
-        return { missing: 'quantity' as const, text: 'Bạn muốn thêm số lượng bao nhiêu?' };
+        return { missing: 'quantity' as const, text: `Bạn muốn thêm bao nhiêu ${entities.inventoryQuery || 'nguyên liệu'} vào tủ lạnh?` };
       }
       if (!entities.inventoryQuery) {
         return { missing: 'recipe' as const, text: 'Bạn muốn thêm nguyên liệu nào vào tủ lạnh?' };
@@ -646,7 +653,7 @@ export class ChatbotCommandService {
           : 'Không tìm thấy nguyên liệu phù hợp trong tủ lạnh.';
       }
       case 'ADD_INVENTORY_ITEM':
-        return `Đã thêm ${entities.quantity}${entities.unit || ''} ${entities.inventoryQuery} vào tủ lạnh.`;
+        return result?.message || `Đã thêm ${entities.quantity}${entities.unit || ''} ${entities.inventoryQuery} vào tủ lạnh.`;
       case 'CHECK_NUTRITION':
       case 'ANALYZE_MEAL_PLAN':
         return `Dinh dưỡng ${entities.period === 'week' ? 'trung bình tuần' : 'trong ngày'}: ${Math.round(Number(result?.calories || 0))} kcal, ${Math.round(Number(result?.protein || 0))}g protein, ${Math.round(Number(result?.carbs || 0))}g carbs, ${Math.round(Number(result?.fat || 0))}g chất béo, ${result?.totalDishes || 0} món.`;
