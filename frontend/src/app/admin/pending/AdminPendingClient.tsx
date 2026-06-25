@@ -145,6 +145,7 @@ export default function AdminPendingClient() {
   const [viewRecipe, setViewRecipe] = useState<any>(null);
   const [submittingReject, setSubmittingReject] = useState(false);
   const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(null);
 
   const handleCloseRejectModal = () => {
     setRejectingId(null);
@@ -157,19 +158,28 @@ export default function AdminPendingClient() {
   const [loadingAudit, setLoadingAudit] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const storedToken =
+        localStorage.getItem('token') ||
+        localStorage.getItem('accessToken') ||
+        localStorage.getItem('authToken');
+      setToken(storedToken);
+    }
+  }, [authLoading]);
+
+  useEffect(() => {
     if (!authLoading) {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
       if (!token || !user) {
         setError('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
         setLoading(false);
       } else if (user.role !== 'admin') {
-        setError('Bạn không có quyền truy cập trang quản trị.');
+        setError('Bạn không có quyền truy cập danh sách chờ duyệt.');
         setLoading(false);
       } else {
         fetchPendingRecipes();
       }
     }
-  }, [authLoading, user]);
+  }, [authLoading, token, user?.role]);
 
   const fetchPendingRecipes = async () => {
     setLoading(true);
@@ -179,19 +189,37 @@ export default function AdminPendingClient() {
         params: { t: Date.now() },
         headers: { 'Cache-Control': 'no-cache' }
       });
-      const data = res.data?.data || res.data || [];
-      setPendingRecipes(data);
+      
+      const payload = res.data;
+      const recipes = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.data)
+          ? payload.data
+          : Array.isArray(payload?.recipes)
+            ? payload.recipes
+            : [];
+      
+      setPendingRecipes(recipes);
     } catch (err: any) {
-      console.error(err);
+      console.error('Fetch pending recipes failed:', {
+        status: err?.response?.status,
+        data: err?.response?.data,
+        message: err?.message,
+        url: err?.config?.url,
+      });
       const status = err?.response?.status;
       if (status === 401) {
         setError('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
       } else if (status === 403) {
-        setError('Bạn không có quyền truy cập trang quản trị.');
+        setError('Bạn không có quyền truy cập danh sách chờ duyệt.');
+      } else if (status >= 500) {
+        setError('Máy chủ đang lỗi. Vui lòng thử lại sau.');
+      } else if (err?.message === 'Network Error' || !err?.response) {
+        setError('Không kết nối được máy chủ.');
       } else {
         setError('Không tải được danh sách chờ duyệt. Vui lòng thử lại.');
       }
-      toast.error('Không tải được danh sách chờ duyệt');
+      toast.error(err?.response?.data?.message || 'Không tải được danh sách chờ duyệt');
     } finally {
       setLoading(false);
     }
@@ -497,8 +525,8 @@ export default function AdminPendingClient() {
       {pendingRecipes.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-2xl border border-gray-200">
           <p className="text-5xl mb-4">✅</p>
-          <p className="text-lg font-medium text-gray-700">Tất cả đã được xử lý</p>
-          <p className="text-gray-500 mt-1">Không có công thức chờ duyệt</p>
+          <p className="text-lg font-medium text-gray-700">Không có bài đăng nào đang chờ duyệt.</p>
+          <p className="text-gray-500 mt-1">Tất cả đã được xử lý</p>
         </div>
       ) : (
         <div className="space-y-4">

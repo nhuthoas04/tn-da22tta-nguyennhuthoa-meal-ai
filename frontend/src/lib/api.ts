@@ -12,7 +12,8 @@ const normalizeApiBaseUrl = (value?: string) => {
 
 // Create axios instance configured for our NestJS backend.
 // Local dev default: http://localhost:3001/api/v1
-export const API_BASE_URL = normalizeApiBaseUrl(process.env.NEXT_PUBLIC_API_URL);
+export const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
 const api = axios.create({
     baseURL: API_BASE_URL,
@@ -22,7 +23,10 @@ const api = axios.create({
 // Request interceptor: attach JWT token to every request
 api.interceptors.request.use((config) => {
     if (typeof window !== 'undefined') {
-        const token = localStorage.getItem('accessToken');
+        const token =
+            localStorage.getItem('token') ||
+            localStorage.getItem('accessToken') ||
+            localStorage.getItem('authToken');
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
         }

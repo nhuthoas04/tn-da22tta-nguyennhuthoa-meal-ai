@@ -26,11 +26,12 @@ async function bootstrap() {
     'http://127.0.0.1:3000',
     'https://tn-da22tta-nguyennhuthoa-meal-ai.vercel.app',
     'https://tn-da22tta-nguyennhuthoa-meal-ai-frontend.onrender.com',
+    process.env.FRONTEND_URL,
     ...(process.env.CORS_ORIGIN || '')
       .split(',')
       .map((origin) => origin.trim())
       .filter(Boolean),
-  ];
+  ].filter(Boolean);
 
   // Enable CORS for frontend
   app.enableCors({
