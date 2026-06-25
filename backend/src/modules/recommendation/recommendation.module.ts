@@ -12,6 +12,7 @@ import { UserPreference } from '../auth/entities/user-preference.entity';
 import { Favorite } from '../recipes/entities/favorite.entity';
 import { WeeklyNutritionAnalysis } from './entities/weekly-nutrition-analysis.entity';
 import { MealPlan } from '../meal-plan/entities/meal-plan.entity';
+import { MealPlanItem } from '../meal-plan/entities/meal-plan-item.entity';
 import { UserActionLog } from '../chatbot/entities/user-action-log.entity';
 import { AuthModule } from '../auth/auth.module';
 
@@ -26,6 +27,7 @@ import { AuthModule } from '../auth/auth.module';
       Favorite,
       WeeklyNutritionAnalysis,
       MealPlan,
+      MealPlanItem,
       UserActionLog,
     ]),
     forwardRef(() => AuthModule),

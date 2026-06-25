@@ -128,6 +128,10 @@ export class MealPlanController {
       emptyPlan?: boolean;
       overwrite?: boolean;
       optimizePortions?: boolean;
+      options?: {
+        preferNewRecipes?: boolean;
+        avoidRepeatLast7Days?: boolean;
+      };
       prioritizeNew?: boolean;
       noRepeatIn7Days?: boolean;
       avoidRepeatMeals?: boolean;
@@ -149,6 +153,10 @@ export class MealPlanController {
       mealTypes?: string[];
       overwrite?: boolean;
       optimizePortions?: boolean;
+      options?: {
+        preferNewRecipes?: boolean;
+        avoidRepeatLast7Days?: boolean;
+      };
       prioritizeNew?: boolean;
       noRepeatIn7Days?: boolean;
       avoidRepeatMeals?: boolean;

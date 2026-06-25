@@ -1,12 +1,12 @@
 databases:
-  - name: mealai-postgres
+  - name: tn-da22tta-nguyennhuthoa-meal-ai-postgres
     databaseName: mealai
     user: mealai
     plan: free
 
 services:
   - type: web
-    name: mealai-backend-nhuthoa
+    name: tn-da22tta-nguyennhuthoa-meal-ai-backend
     runtime: node
     plan: free
     rootDir: backend
@@ -22,14 +22,16 @@ services:
         value: 3001
       - key: DATABASE_URL
         fromDatabase:
-          name: mealai-postgres
+          name: tn-da22tta-nguyennhuthoa-meal-ai-postgres
           property: connectionString
       - key: DB_SSL
         value: true
       - key: DB_SYNC
         value: true
       - key: FRONTEND_URL
-        value: https://meal-ai-six.vercel.app
+        value: https://tn-da22tta-nguyennhuthoa-meal-ai.vercel.app
+      - key: CORS_ORIGIN
+        value: https://tn-da22tta-nguyennhuthoa-meal-ai.vercel.app,https://tn-da22tta-nguyennhuthoa-meal-ai-frontend.onrender.com
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_REFRESH_SECRET
@@ -60,7 +62,7 @@ services:
         sync: false
 
   - type: web
-    name: mealai-frontend
+    name: tn-da22tta-nguyennhuthoa-meal-ai-frontend
     runtime: node
     plan: free
     rootDir: frontend
@@ -72,4 +74,4 @@ services:
       - key: NODE_ENV
         value: production
       - key: NEXT_PUBLIC_API_URL
-        value: https://mealai-backend-nhuthoa.onrender.com/api/v1
+        value: https://tn-da22tta-nguyennhuthoa-meal-ai-backend.onrender.com/api/v1

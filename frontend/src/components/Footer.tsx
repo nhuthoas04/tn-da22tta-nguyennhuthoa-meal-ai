@@ -83,8 +83,8 @@ function LandingFooter() {
               </a>
             </li>
             <li>
-              <a href="https://github.com/nhuthoas04/Meal-AI" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:text-brand-primary hover:translate-x-1 inline-flex transition-all duration-200">
-                <FaGithub className="text-sm" /> nhuthoas04/Meal-AI
+              <a href="https://github.com/nhuthoas04/tn-da22tta-nguyennhuthoa-meal-ai" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:text-brand-primary hover:translate-x-1 inline-flex transition-all duration-200">
+                <FaGithub className="text-sm" /> nhuthoas04/tn-da22tta-nguyennhuthoa-meal-ai
               </a>
             </li>
             <li>

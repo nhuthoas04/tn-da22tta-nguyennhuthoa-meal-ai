@@ -24,7 +24,8 @@ async function bootstrap() {
   const allowedOrigins = [
     'http://localhost:3000',
     'http://127.0.0.1:3000',
-    'https://meal-ai-app-three.vercel.app',
+    'https://tn-da22tta-nguyennhuthoa-meal-ai.vercel.app',
+    'https://tn-da22tta-nguyennhuthoa-meal-ai-frontend.onrender.com',
     ...(process.env.CORS_ORIGIN || '')
       .split(',')
       .map((origin) => origin.trim())

@@ -21,6 +21,18 @@ import {
 } from './meal-portion.util';
 import { selectRecipesAvoidingRepeats } from './meal-repeat.util';
 
+type AiMealOptions = {
+  preferNewRecipes?: boolean;
+  avoidRepeatLast7Days?: boolean;
+};
+
+type MealPlanAiOptionsDto = {
+  options?: AiMealOptions;
+  prioritizeNew?: boolean;
+  noRepeatIn7Days?: boolean;
+  avoidRepeatMeals?: boolean;
+};
+
 @Injectable()
 export class MealPlanService {
   private readonly logger = new Logger(MealPlanService.name);
@@ -177,6 +189,7 @@ export class MealPlanService {
       emptyPlan?: boolean;
       overwrite?: boolean;
       optimizePortions?: boolean;
+      options?: AiMealOptions;
       prioritizeNew?: boolean;
       noRepeatIn7Days?: boolean;
       avoidRepeatMeals?: boolean;
@@ -251,8 +264,11 @@ export class MealPlanService {
     const servings = this.getUserServingsOrThrow(user);
     const recentSuggestedRecipes =
       user?.preferences?.recentSuggestedRecipes || [];
-    const avoidRepeatMeals =
-      dto.noRepeatIn7Days === true || dto.avoidRepeatMeals === true;
+    const aiOptions = this.normalizeAiOptions(dto);
+    const avoidRepeatMeals = aiOptions.avoidRepeatLast7Days;
+    this.logger.log(
+      `[AI Meal Planner Options] generate: preferNewRecipes=${aiOptions.preferNewRecipes}, avoidRepeatLast7Days=${aiOptions.avoidRepeatLast7Days}`,
+    );
 
     // Track used recipes for diversity
     const usedRecipeIds = new Set<string>();
@@ -443,7 +459,10 @@ export class MealPlanService {
           avoidRepeatMeals ? 100 : 30, // request more options to avoid repeat fallback too early
           dto.useAntiWaste !== false,
           {
-            prioritizeNew: dto.prioritizeNew,
+            targetDate: dateStr,
+            preferNewRecipes: aiOptions.preferNewRecipes,
+            avoidRepeatLast7Days: aiOptions.avoidRepeatLast7Days,
+            prioritizeNew: aiOptions.preferNewRecipes,
             noRepeatIn7Days: avoidRepeatMeals,
             currentDayRecipeIds: Array.from(currentDayRecipeIds),
             currentDayRecipeNames: Array.from(currentDayRecipeNames),
@@ -464,7 +483,9 @@ export class MealPlanService {
           currentDayRecipeNames,
           weeklyUsedRecipeIds: usedRecipeIds,
           recentSuggestedRecipes,
-          prioritizeNew: dto.prioritizeNew,
+          preferNewRecipes: aiOptions.preferNewRecipes,
+          avoidRepeatLast7Days: aiOptions.avoidRepeatLast7Days,
+          prioritizeNew: aiOptions.preferNewRecipes,
           noRepeatIn7Days: avoidRepeatMeals,
           previousDayRecipeIds,
         };
@@ -548,7 +569,10 @@ export class MealPlanService {
             avoidRepeatMeals ? 100 : 30,
             dto.useAntiWaste !== false,
             {
-              prioritizeNew: dto.prioritizeNew,
+              targetDate: dateStr,
+              preferNewRecipes: aiOptions.preferNewRecipes,
+              avoidRepeatLast7Days: aiOptions.avoidRepeatLast7Days,
+              prioritizeNew: aiOptions.preferNewRecipes,
               noRepeatIn7Days: avoidRepeatMeals,
               currentDayRecipeIds: Array.from(currentDayRecipeIds),
               currentDayRecipeNames: Array.from(currentDayRecipeNames),
@@ -569,7 +593,9 @@ export class MealPlanService {
             currentDayRecipeNames,
             weeklyUsedRecipeIds: usedRecipeIds,
             recentSuggestedRecipes,
-            prioritizeNew: dto.prioritizeNew,
+            preferNewRecipes: aiOptions.preferNewRecipes,
+            avoidRepeatLast7Days: aiOptions.avoidRepeatLast7Days,
+            prioritizeNew: aiOptions.preferNewRecipes,
             noRepeatIn7Days: avoidRepeatMeals,
             previousDayRecipeIds,
           };
@@ -658,11 +684,11 @@ export class MealPlanService {
     return this.findByWeek(
       userId,
       weekStartValue,
-      databaseWarning
-        ? databaseWarning
-        : fallbackState.hasUsedDuplicates
-          ? 'Không đủ món để tránh lặp hoàn toàn. Một số món được tái sử dụng.'
-          : undefined,
+      fallbackState.hasUsedDuplicates
+        ? avoidRepeatMeals
+          ? 'Kho công thức hiện tại quá ít để tránh lặp hoàn toàn. Một số món có thể được dùng lại.'
+          : 'Kho công thức hiện tại quá ít để tránh trùng món trong ngày. Một số món có thể được dùng lại.'
+        : databaseWarning,
     );
   }
 
@@ -841,6 +867,7 @@ export class MealPlanService {
       mealTypes?: string[];
       overwrite?: boolean;
       optimizePortions?: boolean;
+      options?: AiMealOptions;
       prioritizeNew?: boolean;
       noRepeatIn7Days?: boolean;
       avoidRepeatMeals?: boolean;
@@ -990,8 +1017,11 @@ export class MealPlanService {
     const servings = this.getUserServingsOrThrow(user);
     const recentSuggestedRecipes =
       user?.preferences?.recentSuggestedRecipes || [];
-    const avoidRepeatMeals =
-      dto.noRepeatIn7Days !== false && dto.avoidRepeatMeals !== false;
+    const aiOptions = this.normalizeAiOptions(dto);
+    const avoidRepeatMeals = aiOptions.avoidRepeatLast7Days;
+    this.logger.log(
+      `[AI Meal Planner Options] generateForDays: preferNewRecipes=${aiOptions.preferNewRecipes}, avoidRepeatLast7Days=${aiOptions.avoidRepeatLast7Days}`,
+    );
 
     // 2. Track used recipe IDs in this plan to keep it diverse
     const existingItems = await this.itemRepo.find({
@@ -1124,7 +1154,10 @@ export class MealPlanService {
                     avoidRepeatMeals ? 100 : 30,
                     dto.useAntiWaste !== false,
                     {
-                      prioritizeNew: dto.prioritizeNew,
+                      targetDate: dateStr,
+                      preferNewRecipes: aiOptions.preferNewRecipes,
+                      avoidRepeatLast7Days: aiOptions.avoidRepeatLast7Days,
+                      prioritizeNew: aiOptions.preferNewRecipes,
                       noRepeatIn7Days: avoidRepeatMeals,
                       currentDayRecipeIds: Array.from(currentDayRecipeIds),
                       currentDayRecipeNames: Array.from(currentDayRecipeNames),
@@ -1140,7 +1173,9 @@ export class MealPlanService {
                   currentDayRecipeNames,
                   weeklyUsedRecipeIds: usedRecipeIds,
                   recentSuggestedRecipes,
-                  prioritizeNew: dto.prioritizeNew,
+                  preferNewRecipes: aiOptions.preferNewRecipes,
+                  avoidRepeatLast7Days: aiOptions.avoidRepeatLast7Days,
+                  prioritizeNew: aiOptions.preferNewRecipes,
                   noRepeatIn7Days: avoidRepeatMeals,
                   previousDayRecipeIds,
                 };
@@ -1217,7 +1252,10 @@ export class MealPlanService {
           avoidRepeatMeals ? 100 : 30,
           dto.useAntiWaste !== false,
           {
-            prioritizeNew: dto.prioritizeNew,
+            targetDate: dateStr,
+            preferNewRecipes: aiOptions.preferNewRecipes,
+            avoidRepeatLast7Days: aiOptions.avoidRepeatLast7Days,
+            prioritizeNew: aiOptions.preferNewRecipes,
             noRepeatIn7Days: avoidRepeatMeals,
             currentDayRecipeIds: Array.from(currentDayRecipeIds),
             currentDayRecipeNames: Array.from(currentDayRecipeNames),
@@ -1233,7 +1271,9 @@ export class MealPlanService {
           currentDayRecipeNames,
           weeklyUsedRecipeIds: usedRecipeIds,
           recentSuggestedRecipes,
-          prioritizeNew: dto.prioritizeNew,
+          preferNewRecipes: aiOptions.preferNewRecipes,
+          avoidRepeatLast7Days: aiOptions.avoidRepeatLast7Days,
+          prioritizeNew: aiOptions.preferNewRecipes,
           noRepeatIn7Days: avoidRepeatMeals,
           previousDayRecipeIds,
         };
@@ -1343,7 +1383,10 @@ export class MealPlanService {
             avoidRepeatMeals ? 100 : 30,
             dto.useAntiWaste !== false,
             {
-              prioritizeNew: dto.prioritizeNew,
+              targetDate: dateStr,
+              preferNewRecipes: aiOptions.preferNewRecipes,
+              avoidRepeatLast7Days: aiOptions.avoidRepeatLast7Days,
+              prioritizeNew: aiOptions.preferNewRecipes,
               noRepeatIn7Days: avoidRepeatMeals,
               currentDayRecipeIds: Array.from(currentDayRecipeIds),
               currentDayRecipeNames: Array.from(currentDayRecipeNames),
@@ -1364,7 +1407,9 @@ export class MealPlanService {
             currentDayRecipeNames,
             weeklyUsedRecipeIds: usedRecipeIds,
             recentSuggestedRecipes,
-            prioritizeNew: dto.prioritizeNew,
+            preferNewRecipes: aiOptions.preferNewRecipes,
+            avoidRepeatLast7Days: aiOptions.avoidRepeatLast7Days,
+            prioritizeNew: aiOptions.preferNewRecipes,
             noRepeatIn7Days: avoidRepeatMeals,
             previousDayRecipeIds,
           };
@@ -1441,11 +1486,11 @@ export class MealPlanService {
     return this.findByWeek(
       userId,
       this.formatDateInput(weekStart),
-      databaseWarning
-        ? databaseWarning
-        : fallbackState.hasUsedDuplicates
-          ? 'Không đủ món để tránh lặp hoàn toàn. Một số món được tái sử dụng.'
-          : undefined,
+      fallbackState.hasUsedDuplicates
+        ? avoidRepeatMeals
+          ? 'Kho công thức hiện tại quá ít để tránh lặp hoàn toàn. Một số món có thể được dùng lại.'
+          : 'Kho công thức hiện tại quá ít để tránh trùng món trong ngày. Một số món có thể được dùng lại.'
+        : databaseWarning,
     );
   }
 
@@ -1747,6 +1792,17 @@ export class MealPlanService {
     return counts;
   }
 
+  private normalizeAiOptions(dto: MealPlanAiOptionsDto) {
+    return {
+      preferNewRecipes:
+        dto.options?.preferNewRecipes === true || dto.prioritizeNew === true,
+      avoidRepeatLast7Days:
+        dto.options?.avoidRepeatLast7Days === true ||
+        dto.noRepeatIn7Days === true ||
+        dto.avoidRepeatMeals === true,
+    };
+  }
+
   private getRemainingDailyDishCapacity(
     dailyDishCounts: Map<string, number>,
     dateStr: string,
@@ -1768,10 +1824,12 @@ export class MealPlanService {
   private async getRecipeIdsUsedInNoRepeatWindow(
     userId: string,
     weekStart: Date,
-    weekEnd: Date,
+    _weekEnd: Date,
   ) {
     const historyStart = new Date(weekStart);
     historyStart.setDate(historyStart.getDate() - 7);
+    const historyEnd = new Date(weekStart);
+    historyEnd.setDate(historyEnd.getDate() - 1);
 
     const rows = await this.itemRepo
       .createQueryBuilder('item')
@@ -1779,7 +1837,7 @@ export class MealPlanService {
       .where('plan."userId" = :userId', { userId })
       .andWhere('item.meal_date BETWEEN :startDate AND :endDate', {
         startDate: this.formatDateInput(historyStart),
-        endDate: this.formatDateInput(weekEnd),
+        endDate: this.formatDateInput(historyEnd),
       })
       .andWhere('item."recipeId" IS NOT NULL')
       .select('DISTINCT item."recipeId"', 'recipeId')
@@ -2100,6 +2158,11 @@ export class MealPlanService {
     }
 
     const usedRecipeIdsForDay = context.currentDayRecipeIds;
+    const currentMealRecipeIds = new Set(
+      dayItemsList
+        .filter((item) => item.mealType === mealType && item.recipeId)
+        .map((item) => item.recipeId),
+    );
     const duplicateRecipes = candidateRecipes.filter((r) =>
       usedRecipeIdsForDay.has(r.id),
     );
@@ -2119,6 +2182,9 @@ export class MealPlanService {
     const yesterdayCandidates: Recipe[] = [];
 
     for (const r of nonDuplicateCandidates) {
+      if (currentMealRecipeIds.has(r.id)) {
+        continue;
+      }
       if (previousDayIds.has(r.id)) {
         yesterdayCandidates.push(r);
       } else if (weeklyUsedIds.has(r.id)) {
@@ -2178,6 +2244,9 @@ export class MealPlanService {
         if (selected.some((r) => r.id === recipe.id)) {
           return false;
         }
+        if (currentMealRecipeIds.has(recipe.id)) {
+          return false;
+        }
         const occurrences = getOccurrenceCount(recipe.id);
         return occurrences < 2;
       });
@@ -2195,6 +2264,7 @@ export class MealPlanService {
         const nextRecipe = reuseCandidates.shift();
         selected.push(nextRecipe);
         usedRecipeIdsForDay.add(nextRecipe.id);
+        currentMealRecipeIds.add(nextRecipe.id);
         context.currentDayRecipeNames.add(nextRecipe.name);
       }
     }

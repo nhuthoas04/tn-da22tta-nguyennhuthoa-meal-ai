@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, LessThanOrEqual } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Recipe } from '../recipes/entities/recipe.entity';
 import { RecipeIngredient } from '../recipes/entities/recipe-ingredient.entity';
 import { Inventory } from '../inventory/entities/inventory.entity';
@@ -9,6 +9,27 @@ import { UserPreference } from '../auth/entities/user-preference.entity';
 import { Favorite } from '../recipes/entities/favorite.entity';
 import { CalorieService } from './calorie.service';
 import { UserActionLog } from '../chatbot/entities/user-action-log.entity';
+import { MealPlanItem } from '../meal-plan/entities/meal-plan-item.entity';
+
+type RecommendationOptions = {
+  excludeIds?: string[];
+  excludeNames?: string[];
+  currentDayRecipeIds?: string[];
+  currentDayRecipeNames?: string[];
+  currentDayTags?: string[];
+  recentSuggestedNames?: string[];
+  preferNewRecipes?: boolean;
+  avoidRepeatLast7Days?: boolean;
+  prioritizeNew?: boolean;
+  noRepeatIn7Days?: boolean;
+  weeklyUsedRecipeIds?: string[];
+  previousDayRecipeIds?: string[];
+  targetDate?: string;
+  options?: {
+    preferNewRecipes?: boolean;
+    avoidRepeatLast7Days?: boolean;
+  };
+};
 
 /**
  * Smart Recommendation Engine
@@ -48,6 +69,8 @@ export class RecommendationService {
     @InjectRepository(Favorite) private favoriteRepo: Repository<Favorite>,
     @InjectRepository(UserActionLog)
     private actionLogRepo: Repository<UserActionLog>,
+    @InjectRepository(MealPlanItem)
+    private mealPlanItemRepo: Repository<MealPlanItem>,
     private calorieService: CalorieService,
   ) { }
 
@@ -60,19 +83,11 @@ export class RecommendationService {
     mealType: string,
     limit: number = 5,
     useAntiWaste: boolean = true,
-    options: {
-      excludeIds?: string[];
-      excludeNames?: string[];
-      currentDayRecipeIds?: string[];
-      currentDayRecipeNames?: string[];
-      currentDayTags?: string[];
-      recentSuggestedNames?: string[];
-      prioritizeNew?: boolean;
-      noRepeatIn7Days?: boolean;
-      weeklyUsedRecipeIds?: string[];
-      previousDayRecipeIds?: string[];
-    } = {},
+    options: RecommendationOptions = {},
   ) {
+    const aiOptions = this.normalizeAiOptions(options);
+    console.log('[MealAI][recommendation] AI options:', aiOptions);
+
     // Load user context
     const user = await this.userRepo.findOne({
       where: { id: userId },
@@ -98,6 +113,12 @@ export class RecommendationService {
     // Get user's favorited recipe IDs for preference scoring
     const favorites = await this.favoriteRepo.find({ where: { userId } });
     const favRecipeIds = new Set(favorites.map((f) => f.recipeId));
+    const mealPlanHistory = await this.getMealPlanHistory(userId, options.targetDate);
+    const occurrenceByRecipeId = mealPlanHistory.occurrenceByRecipeId;
+    const recentRecipeIds = new Set([
+      ...mealPlanHistory.recentRecipeIds,
+      ...((options.weeklyUsedRecipeIds || []) as string[]),
+    ]);
 
     // ========== STAGE 1: PRE-FILTER ==========
     let recipes = await this.recipeRepo.find({
@@ -172,6 +193,22 @@ export class RecommendationService {
           );
         });
       });
+    }
+
+    if (aiOptions.avoidRepeatLast7Days && recentRecipeIds.size > 0) {
+      const nonRecentRecipes = recipes.filter((r) => !recentRecipeIds.has(r.id));
+      const minimumFallbackPoolSize = Math.min(10, recipes.length);
+      if (nonRecentRecipes.length >= minimumFallbackPoolSize) {
+        console.log(
+          '[MealAI][recommendation] Filtering recipes used in last 7 days:',
+          recipes.length - nonRecentRecipes.length,
+        );
+        recipes = nonRecentRecipes;
+      } else {
+        console.log(
+          '[MealAI][recommendation] Not enough recipes to fully avoid last-7-day repeats; using penalty fallback.',
+        );
+      }
     }
 
     // Parse health conditions
@@ -249,6 +286,16 @@ export class RecommendationService {
         ),
       };
 
+      const historyCount = occurrenceByRecipeId.get(recipe.id) || 0;
+      const isUsedInLast7Days = recentRecipeIds.has(recipe.id);
+      const newRecipeBonus = aiOptions.preferNewRecipes
+        ? this.scoreNewRecipeBonus(historyCount)
+        : 0;
+      const repeatPenalty = this.scoreRepeatPenalty(
+        isUsedInLast7Days,
+        aiOptions.avoidRepeatLast7Days,
+      );
+
       // Calculate dynamic diversity score adjustment
       let diversityScore = 0;
 
@@ -259,7 +306,7 @@ export class RecommendationService {
         diversityScore -= 0.4;
       } else {
         // Tăng điểm cho món chưa dùng gần đây
-        if (options?.prioritizeNew) {
+        if (aiOptions.preferNewRecipes) {
           diversityScore += 0.2;
         } else {
           diversityScore += 0.1;
@@ -293,11 +340,15 @@ export class RecommendationService {
 
       // 4. Trùng trong tuần (nếu noRepeatIn7Days là true thì cấm lặp, nếu false thì phạt nhẹ để hạn chế)
       if (options?.weeklyUsedRecipeIds?.includes(recipe.id)) {
-        if (options?.noRepeatIn7Days) {
+        if (aiOptions.avoidRepeatLast7Days) {
           diversityScore -= 1.0;
         } else {
           diversityScore -= 0.25;
         }
+      }
+
+      if (isUsedInLast7Days && !aiOptions.avoidRepeatLast7Days) {
+        diversityScore -= 0.15;
       }
 
       // 5. Trùng với ngày hôm trước (ngày liên tiếp)
@@ -316,7 +367,12 @@ export class RecommendationService {
 
       // Apply user habit adjustments and diversity score
       const habitAdjust = habitScores.get(recipe.id) || 0;
-      const unclampedTotal = total + habitAdjust + diversityScore;
+      const unclampedTotal =
+        total +
+        habitAdjust +
+        diversityScore +
+        newRecipeBonus / 100 -
+        repeatPenalty / 100;
       total = Math.max(0, Math.min(1.0, unclampedTotal));
 
       // Generate human-readable reasons
@@ -368,6 +424,10 @@ export class RecommendationService {
         score: {
           total: Math.round(total * 100) / 100,
           unclampedTotal,
+          newRecipeBonus,
+          repeatPenalty,
+          mealPlanHistoryCount: historyCount,
+          usedInLast7Days: isUsedInLast7Days,
           ...scores,
         },
         reasons,
@@ -387,6 +447,74 @@ export class RecommendationService {
       },
       recommendations: scored.slice(0, limit),
     };
+  }
+
+  private normalizeAiOptions(options: RecommendationOptions) {
+    return {
+      preferNewRecipes:
+        options.options?.preferNewRecipes === true ||
+        options.preferNewRecipes === true ||
+        options.prioritizeNew === true,
+      avoidRepeatLast7Days:
+        options.options?.avoidRepeatLast7Days === true ||
+        options.avoidRepeatLast7Days === true ||
+        options.noRepeatIn7Days === true,
+    };
+  }
+
+  private async getMealPlanHistory(userId: string, targetDate?: string) {
+    const occurrenceByRecipeId = new Map<string, number>();
+    const recentRecipeIds = new Set<string>();
+    const endDate = targetDate ? this.parseDateInput(targetDate) : new Date();
+    endDate.setHours(0, 0, 0, 0);
+    const recentStart = new Date(endDate);
+    recentStart.setDate(recentStart.getDate() - 7);
+    const recentEnd = new Date(endDate);
+    recentEnd.setDate(recentEnd.getDate() - 1);
+
+    const rows = await this.mealPlanItemRepo
+      .createQueryBuilder('item')
+      .innerJoin('item.mealPlan', 'plan')
+      .where('plan."userId" = :userId', { userId })
+      .andWhere('item."recipeId" IS NOT NULL')
+      .select('item."recipeId"', 'recipeId')
+      .addSelect('item.meal_date', 'mealDate')
+      .getRawMany<{ recipeId: string; mealDate: string }>();
+
+    for (const row of rows) {
+      if (!row.recipeId) continue;
+      occurrenceByRecipeId.set(
+        row.recipeId,
+        (occurrenceByRecipeId.get(row.recipeId) || 0) + 1,
+      );
+
+      const mealDate = this.parseDateInput(String(row.mealDate));
+      if (mealDate >= recentStart && mealDate <= recentEnd) {
+        recentRecipeIds.add(row.recipeId);
+      }
+    }
+
+    return { occurrenceByRecipeId, recentRecipeIds };
+  }
+
+  private scoreNewRecipeBonus(historyCount: number): number {
+    if (historyCount === 0) return 20;
+    if (historyCount === 1) return 10;
+    if (historyCount <= 3) return 5;
+    return 0;
+  }
+
+  private scoreRepeatPenalty(
+    usedInLast7Days: boolean,
+    avoidRepeatLast7Days: boolean,
+  ): number {
+    if (!usedInLast7Days) return 0;
+    return avoidRepeatLast7Days ? 40 : 8;
+  }
+
+  private parseDateInput(value: string): Date {
+    const [year, month, day] = value.split('-').map(Number);
+    return new Date(year, month - 1, day);
   }
 
   /**

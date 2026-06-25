@@ -116,8 +116,16 @@ export class ChatbotActionHandler {
               excludeIds: args.excludeIds,
               excludeNames: args.excludeNames,
               currentDayRecipeIds: args.currentDayRecipeIds,
-              prioritizeNew: true,
-              noRepeatIn7Days: true,
+              options: {
+                preferNewRecipes:
+                  args.options?.preferNewRecipes !== undefined
+                    ? args.options.preferNewRecipes
+                    : true,
+                avoidRepeatLast7Days:
+                  args.options?.avoidRepeatLast7Days !== undefined
+                    ? args.options.avoidRepeatLast7Days
+                    : true,
+              },
             },
           );
 
@@ -285,8 +293,16 @@ export class ChatbotActionHandler {
               args.useAntiWaste !== false,
               {
                 excludeIds: excludedIds,
-                prioritizeNew: true,
-                noRepeatIn7Days: true,
+                options: {
+                  preferNewRecipes:
+                    args.options?.preferNewRecipes !== undefined
+                      ? args.options.preferNewRecipes
+                      : true,
+                  avoidRepeatLast7Days:
+                    args.options?.avoidRepeatLast7Days !== undefined
+                      ? args.options.avoidRepeatLast7Days
+                      : true,
+                },
               },
             );
             const recommendationPayload: any = recommendations;
@@ -488,6 +504,16 @@ export class ChatbotActionHandler {
               useAntiWaste: args.useAntiWaste !== false,
               mealType: args.mealType,
               overwrite: args.overwrite === true,
+              options: {
+                preferNewRecipes:
+                  args.options?.preferNewRecipes !== undefined
+                    ? args.options.preferNewRecipes
+                    : true,
+                avoidRepeatLast7Days:
+                  args.options?.avoidRepeatLast7Days !== undefined
+                    ? args.options.avoidRepeatLast7Days
+                    : true,
+              },
             },
           );
           return daysResult;

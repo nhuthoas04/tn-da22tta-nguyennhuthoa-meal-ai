@@ -192,7 +192,7 @@ export const mealPlanAPI = {
             mutation: 'generate',
             weekStart: data?.weekStart,
         }),
-    generateForDays: (data: { weekStart?: string; days?: number[]; mealDates?: string[]; useAntiWaste?: boolean; mealType?: string; mealTypes?: string[]; overwrite?: boolean; optimizePortions?: boolean; prioritizeNew?: boolean; noRepeatIn7Days?: boolean; avoidRepeatMeals?: boolean }) =>
+    generateForDays: (data: { weekStart?: string; days?: number[]; mealDates?: string[]; useAntiWaste?: boolean; mealType?: string; mealTypes?: string[]; overwrite?: boolean; optimizePortions?: boolean; options?: { preferNewRecipes?: boolean; avoidRepeatLast7Days?: boolean }; prioritizeNew?: boolean; noRepeatIn7Days?: boolean; avoidRepeatMeals?: boolean }) =>
         invalidateMealPlanAfter(api.post('/meal-plans/generate-days', data), {
             mutation: 'generate-days',
             weekStart: data.weekStart,

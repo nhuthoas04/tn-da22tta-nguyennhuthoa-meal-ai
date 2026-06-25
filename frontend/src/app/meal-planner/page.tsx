@@ -41,8 +41,10 @@ export default function MealPlannerPage() {
   const [aiSuggestionError, setAiSuggestionError] = useState<string | null>(null);
   const [portionWarning, setPortionWarning] = useState<PortionWarningState | null>(null);
   const [optimizingPortions, setOptimizingPortions] = useState(false);
-  const [prioritizeNew, setPrioritizeNew] = useState(true);
-  const [noRepeatIn7Days, setNoRepeatIn7Days] = useState(false);
+  const [aiOptions, setAiOptions] = useState({
+    preferNewRecipes: false,
+    avoidRepeatLast7Days: false,
+  });
   const [optimizationResult, setOptimizationResult] = useState<any | null>(null);
   const [optimizationError, setOptimizationError] = useState<string | null>(null);
   const [manualAddWarningModal, setManualAddWarningModal] = useState<{
@@ -118,6 +120,22 @@ export default function MealPlannerPage() {
   const getUserDailyCalories = () => {
     const calories = Number((user as any)?.dailyCalorieTarget);
     return Number.isFinite(calories) && calories > 0 ? calories : 0;
+  };
+
+  const getEnabledAiOptionLabels = () => {
+    const labels = [];
+    if (aiOptions.preferNewRecipes) labels.push('Ưu tiên món mới');
+    if (aiOptions.avoidRepeatLast7Days) labels.push('Không lặp món trong 7 ngày');
+    return labels;
+  };
+
+  const showAiOptionsToast = () => {
+    const labels = getEnabledAiOptionLabels();
+    const message = labels.length > 0
+      ? `Đang gợi ý với tùy chọn: ${labels.join(', ')}.`
+      : 'Đang gợi ý theo scoring mặc định.';
+    console.log('[MealAI][meal-planner][AI options]', aiOptions);
+    toast(message, { duration: 4500 });
   };
 
   const getMealSlotItems = (items: any[], mealType: string) =>
@@ -232,6 +250,7 @@ export default function MealPlannerPage() {
     setAiSuggestingDay(dayOfWeek);
     setAiSuggestionError(null);
     try {
+      showAiOptionsToast();
       const oldDayItems = plan?.items?.filter((item: any) => item.mealDate === dateStr && item.recipe) || [];
       const beforeCount = oldDayItems.length;
 
@@ -242,8 +261,7 @@ export default function MealPlannerPage() {
         mealTypes: editableMealTypes,
         useAntiWaste: true,
         overwrite,
-        prioritizeNew,
-        noRepeatIn7Days,
+        options: aiOptions,
       });
       console.log('[MealAI][meal-planner][AI suggest] raw response:', res.data);
 
@@ -310,8 +328,7 @@ export default function MealPlannerPage() {
         overwrite: true,
         optimizePortions: true,
         mealTypes: availableMealTypes,
-        prioritizeNew,
-        noRepeatIn7Days,
+        options: aiOptions,
       });
 
       const details = res.data?.optimizationDetails;
@@ -746,28 +763,52 @@ export default function MealPlannerPage() {
         )}
 
         {/* AI Suggestion Settings */}
-        <div className="card-dashboard mb-6 p-4 flex flex-col sm:flex-row sm:items-center gap-4 bg-emerald-50/5 border-brand-primary/20">
+        <div className="card-dashboard mb-6 p-4 flex flex-col gap-4 bg-emerald-50/5 border-brand-primary/20">
           <div className="text-sm font-bold text-slate-700 flex items-center gap-1.5 shrink-0">
             ⚙️ Tùy chọn gợi ý AI:
           </div>
-          <div className="flex flex-wrap items-center gap-6">
-            <label className="flex items-center gap-2 text-sm text-slate-600 font-semibold cursor-pointer select-none">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="flex items-start gap-2 text-sm text-slate-600 font-semibold cursor-pointer select-none">
               <input
                 type="checkbox"
-                checked={prioritizeNew}
-                onChange={(e) => setPrioritizeNew(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-300 text-brand-primary focus:ring-brand-primary cursor-pointer"
+                checked={aiOptions.preferNewRecipes}
+                onChange={(e) =>
+                  setAiOptions((current) => ({
+                    ...current,
+                    preferNewRecipes: e.target.checked,
+                  }))
+                }
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-brand-primary focus:ring-brand-primary cursor-pointer"
               />
-              Ưu tiên món mới
+              <span>
+                <span className="block">Ưu tiên món mới</span>
+                {aiOptions.preferNewRecipes && (
+                  <span className="mt-1 block text-xs font-medium text-slate-500">
+                    Hệ thống sẽ cộng điểm cho món ít xuất hiện trong thực đơn của bạn.
+                  </span>
+                )}
+              </span>
             </label>
-            <label className="flex items-center gap-2 text-sm text-slate-600 font-semibold cursor-pointer select-none">
+            <label className="flex items-start gap-2 text-sm text-slate-600 font-semibold cursor-pointer select-none">
               <input
                 type="checkbox"
-                checked={noRepeatIn7Days}
-                onChange={(e) => setNoRepeatIn7Days(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-300 text-brand-primary focus:ring-brand-primary cursor-pointer"
+                checked={aiOptions.avoidRepeatLast7Days}
+                onChange={(e) =>
+                  setAiOptions((current) => ({
+                    ...current,
+                    avoidRepeatLast7Days: e.target.checked,
+                  }))
+                }
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-brand-primary focus:ring-brand-primary cursor-pointer"
               />
-              Không lặp món trong 7 ngày
+              <span>
+                <span className="block">Không lặp món trong 7 ngày</span>
+                {aiOptions.avoidRepeatLast7Days && (
+                  <span className="mt-1 block text-xs font-medium text-slate-500">
+                    Hệ thống sẽ tránh chọn lại các món đã xuất hiện trong 7 ngày gần nhất.
+                  </span>
+                )}
+              </span>
             </label>
           </div>
         </div>
