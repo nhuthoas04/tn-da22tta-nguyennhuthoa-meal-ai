@@ -88,8 +88,9 @@ export class ChatbotIntentService {
       return matched('REPLACE_MEAL_ITEM', 0.98);
     }
     if (
-      /^(xoa|bo)\b/.test(text) &&
-      this.hasAny(text, ['mon', 'bua', 'thuc don', 'ngay mai', 'hom nay'])
+      (/^(xoa|bo)\b/.test(text) &&
+        this.hasAny(text, ['mon', 'bua', 'thuc don', 'ngay mai', 'hom nay', 'hom qua'])) ||
+      /^(don|clear)\s+(bua|buoi)\b/.test(text)
     ) {
       return matched('REMOVE_MEAL_ITEM', 0.98);
     }
@@ -171,7 +172,7 @@ export class ChatbotIntentService {
     const text = normalized || this.normalize(original);
     const entities: ChatbotEntities = {};
 
-    entities.mealType = this.parseMealType(text);
+    entities.mealType = this.parseMealType(original, text);
     entities.date = this.parseDate(text);
     entities.period = text.includes('tuan nay') || text.includes('thu hai den chu nhat')
       ? 'week'
@@ -291,18 +292,36 @@ export class ChatbotIntentService {
     return match ? match[1].trim() : undefined;
   }
 
-  private parseMealType(text: string): ChatbotEntities['mealType'] {
-    if (text.includes('bua sang') || text.includes('buoi sang') || text.includes('an sang')) return 'breakfast';
-    if (text.includes('bua trua') || text.includes('buoi trua') || text.includes('an trua')) return 'lunch';
+  private parseMealType(original: string, text: string): ChatbotEntities['mealType'] {
+    const originalLower = original.toLowerCase();
+    const hasVietnameseDinnerWord = /\btối\b/iu.test(originalLower);
+    const hasPlainDinnerWord =
+      /\b(?:bua|buoi|an|mon|o|vao|cho)\s+toi\b/.test(text) ||
+      /\btoi\s+(?:hom|ngay|thu|nay|mai|qua)\b/.test(text) ||
+      text.includes('chieu toi');
+
+    if (
+      text.includes('bua sang') ||
+      text.includes('buoi sang') ||
+      text.includes('an sang') ||
+      text.includes('mon sang') ||
+      /\bsang\b/.test(text)
+    ) return 'breakfast';
+    if (
+      text.includes('bua trua') ||
+      text.includes('buoi trua') ||
+      text.includes('an trua') ||
+      text.includes('mon trua') ||
+      /\btrua\b/.test(text)
+    ) return 'lunch';
     if (
       text.includes('bua toi') ||
       text.includes('buoi toi') ||
       text.includes('an toi') ||
-      text.includes('toi nay') ||
-      text.includes('toi hom nay') ||
-      text.includes('toi hom qua') ||
-      text.includes('toi ngay mai') ||
-      text.includes('mon toi')
+      text.includes('mon toi') ||
+      text.includes('chieu toi') ||
+      hasVietnameseDinnerWord ||
+      hasPlainDinnerWord
     ) return 'dinner';
     if (text.includes('bua phu')) return 'snack';
     return undefined;
