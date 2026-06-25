@@ -111,10 +111,3 @@ Cài đặt **PostgreSQL** và tạo một cơ sở dữ liệu mới tên là `
   npm run dev
   ```
   Ứng dụng web sẽ chạy tại: `http://localhost:3000`
-
----
-
-## 📝 Tài Khoản Kiểm Thử Mẫu
-- **Email:** `nhuthoas04@gmail.com`
-- **Mật khẩu:** `nhuthoas04`
-- **Quyền:** `user` / `admin`
