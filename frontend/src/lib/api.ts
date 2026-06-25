@@ -109,7 +109,7 @@ export const adminAPI = {
     updateRecipe: (id: string, data: any) => api.put(`/recipes/admin/${id}`, data),
     deleteRecipe: (id: string) => api.delete(`/recipes/admin/${id}`),
     // Moderation
-    getPending: (params?: any) => api.get('/recipes/admin/pending', { params, headers: { 'Cache-Control': 'no-cache' } }),
+    getPending: (params?: any) => api.get('/recipes/admin/pending', { params: { ...params, t: Date.now() }, headers: { 'Cache-Control': 'no-cache' } }),
     approve: (id: string) => api.post(`/recipes/admin/${id}/approve`),
     reject: (id: string, reason: string) => api.post(`/recipes/admin/${id}/reject`, { reason }),
     getAudit: (recipeId: string) => api.get(`/recipes/admin/moderation/${recipeId}/audit`),

@@ -711,7 +711,7 @@ export class RecipesService implements OnModuleInit {
       }
     }
 
-    return { message: 'Recipe approved', recipe };
+    return { success: true, id: recipe.id, status: recipe.status, message: 'Recipe approved', recipe };
   }
 
   /**
@@ -761,7 +761,7 @@ export class RecipesService implements OnModuleInit {
       }
     }
 
-    return { message: 'Recipe rejected', recipe };
+    return { success: true, id: recipe.id, status: recipe.status, message: 'Recipe rejected', recipe };
   }
 
   // ==================== USER: SUBMIT RECIPE ====================

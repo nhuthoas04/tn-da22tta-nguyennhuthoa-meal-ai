@@ -161,7 +161,8 @@ export default function AdminPendingPage() {
 
   useEffect(() => {
     if (!authLoading) {
-      if (!user) {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
+      if (!token || !user) {
         setError('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
         setLoading(false);
       } else if (user.role !== 'admin') {
