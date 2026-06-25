@@ -212,6 +212,11 @@ export class ChatbotIntentService {
       entities.expirationDate = this.formatDate(this.addDays(new Date(), Number(expiry[1])));
     }
 
+    const clearMealItems = this.isClearMealItemsRequest(text);
+    if (clearMealItems) {
+      entities.clearMealItems = true;
+    }
+
     const replaceMatch = original.match(/(?:đổi|thay)\s+(?:món\s+)?(.+?)\s+thành\s+(.+?)(?:\s+(?:trong|vào|ở)\s+bữa|$)/iu);
     if (replaceMatch) {
       entities.oldRecipeName = this.cleanRecipeName(replaceMatch[1]);
@@ -221,7 +226,7 @@ export class ChatbotIntentService {
       if (addMatch && !/^(này|vừa gợi ý)$/iu.test(addMatch[1].trim())) {
         entities.recipeName = this.cleanRecipeName(addMatch[1]);
       }
-    } else if (/^(xóa|bỏ)\b/iu.test(original)) {
+    } else if (/^(xóa|bỏ)\b/iu.test(original) && !clearMealItems) {
       const removeMatch = original.match(/^(?:xóa|bỏ)\s+(?:món\s+)?(.+?)(?:\s+khỏi|\s+trong|$)/iu);
       if (removeMatch && !/^(này|toàn bộ|cả)$/iu.test(removeMatch[1].trim())) {
         entities.recipeName = this.cleanRecipeName(removeMatch[1]);
@@ -242,7 +247,11 @@ export class ChatbotIntentService {
       delete entities.recipeName;
     }
 
-    if (entities.removeCount) entities.scope = 'meal';
+    if (clearMealItems) {
+      delete entities.recipeId;
+      delete entities.recipeName;
+      entities.scope = 'meal';
+    } else if (entities.removeCount) entities.scope = 'meal';
     else if (this.hasAny(text, ['toan bo bua', 'ca bua'])) entities.scope = 'meal';
     else if (this.hasAny(text, ['lam trong thuc don ngay', 'toan bo thuc don', 'xoa ngay'])) entities.scope = 'day';
     else entities.scope = 'item';
@@ -283,11 +292,21 @@ export class ChatbotIntentService {
   }
 
   private parseMealType(text: string): ChatbotEntities['mealType'] {
-    if (text.includes('bua sang') || text.includes('an sang')) return 'breakfast';
-    if (text.includes('bua trua') || text.includes('an trua')) return 'lunch';
-    if (text.includes('bua toi') || text.includes('an toi')) return 'dinner';
+    if (text.includes('bua sang') || text.includes('buoi sang') || text.includes('an sang')) return 'breakfast';
+    if (text.includes('bua trua') || text.includes('buoi trua') || text.includes('an trua')) return 'lunch';
+    if (text.includes('bua toi') || text.includes('buoi toi') || text.includes('an toi') || text.includes('toi nay')) return 'dinner';
     if (text.includes('bua phu')) return 'snack';
     return undefined;
+  }
+
+  private isClearMealItemsRequest(text: string): boolean {
+    return (
+      /^(?:xoa|bo)\s+(?:cac|het|toan bo|tat ca)\s+mon\b/.test(text) ||
+      /^(?:xoa|bo)\s+(?:het|toan bo|tat ca|ca)\s+bua\b/.test(text) ||
+      /\b(?:xoa|bo)\s+(?:cac|het|toan bo|tat ca)\s+mon\s+(?:o|trong|khoi)?\s*(?:bua|buoi)\b/.test(text) ||
+      /\b(?:don|clear)\s+(?:bua|buoi)\b/.test(text) ||
+      /\bbo\s+het\s+mon\b/.test(text)
+    );
   }
 
   private parseDate(text: string): string | undefined {

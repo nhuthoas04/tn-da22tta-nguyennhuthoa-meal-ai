@@ -360,6 +360,11 @@ export class ChatbotActionHandler {
           if (!planToRemoveFrom) {
             return { message: 'Không tìm thấy thực đơn tuần này để xóa.' };
           }
+          if (args.mealType && this.isMealSlotInPastForDate(removeMealDate, args.mealType)) {
+            return {
+              message: 'Bữa này đã qua, hệ thống chỉ cho xem lại và không thể xóa món.',
+            };
+          }
           const itemsToRemove = planToRemoveFrom.items.filter(
             (i: any) =>
               this.formatDateInput(this.parseDateInput(String(i.mealDate))) ===
@@ -367,8 +372,10 @@ export class ChatbotActionHandler {
               (!args.mealType || i.mealType === args.mealType),
           );
           if (itemsToRemove.length === 0) {
+            const mealLabel = this.formatMealTypeLabel(args.mealType);
+            const dateLabel = this.formatChatDateLabel(removeMealDate);
             return {
-              message: `Bữa ăn này hiện đang trống, không có món nào để xóa.`,
+              message: `Bữa ${mealLabel} ${dateLabel} hiện chưa có món nào để xóa.`,
             };
           }
           if (args.recipeId || args.recipeName) {
@@ -382,14 +389,10 @@ export class ChatbotActionHandler {
                     .includes(String(args.recipeName).toLowerCase())),
             );
             if (!targetItem) {
-              const mealLabel =
-                args.mealType === 'breakfast'
-                  ? 'Sáng'
-                  : args.mealType === 'lunch'
-                    ? 'Trưa'
-                    : 'Tối';
+              const mealLabel = this.formatMealTypeLabel(args.mealType);
+              const dateLabel = this.formatChatDateLabel(removeMealDate);
               return {
-                message: `Không tìm thấy món cần xóa trong bữa ${mealLabel} hôm nay.`,
+                message: `Không tìm thấy món cần xóa trong bữa ${mealLabel} ${dateLabel}.`,
               };
             }
             await this.mealPlanService.removeItem(
@@ -405,7 +408,7 @@ export class ChatbotActionHandler {
               ...updatedPlan,
               removedCount: 1,
               removedRecipeName: targetItem.recipe?.name,
-              message: `Đã xóa món ${targetItem.recipe?.name || 'đã chọn'} khỏi bữa ${args.mealType === 'breakfast' ? 'Sáng' : args.mealType === 'lunch' ? 'Trưa' : 'Tối'} hôm nay.`,
+              message: `Đã xóa món ${targetItem.recipe?.name || 'đã chọn'} khỏi bữa ${this.formatMealTypeLabel(args.mealType)} ${this.formatChatDateLabel(removeMealDate)}.`,
             };
           } else {
             const requestedRemoveCount = Number(args.removeCount);
@@ -425,13 +428,22 @@ export class ChatbotActionHandler {
               userId,
               removeWeekStart,
             );
+            const mealLabel = this.formatMealTypeLabel(args.mealType);
+            const dateLabel = this.formatChatDateLabel(removeMealDate);
+            const removedNames = targetsToRemove
+              .map((item: any) => item.recipe?.name)
+              .filter(Boolean)
+              .join(', ');
             return {
               ...updatedPlan,
               removedCount: targetsToRemove.length,
+              removedRecipeNames: targetsToRemove
+                .map((item: any) => item.recipe?.name)
+                .filter(Boolean),
               message:
                 targetsToRemove.length === 1
-                  ? `Đã xóa món ${targetsToRemove[0].recipe?.name || 'đã chọn'} khỏi bữa ${args.mealType === 'breakfast' ? 'Sáng' : args.mealType === 'lunch' ? 'Trưa' : 'Tối'} hôm nay.`
-                  : `Đã xóa ${targetsToRemove.length} món khỏi bữa ${args.mealType === 'breakfast' ? 'Sáng' : args.mealType === 'lunch' ? 'Trưa' : 'Tối'} hôm nay.`,
+                  ? `Đã xóa món ${targetsToRemove[0].recipe?.name || 'đã chọn'} khỏi bữa ${mealLabel} ${dateLabel}.`
+                  : `Đã xóa ${targetsToRemove.length} món khỏi bữa ${mealLabel} ${dateLabel}${removedNames ? `: ${removedNames}` : ''}.`,
             };
           }
 
@@ -771,6 +783,48 @@ export class ChatbotActionHandler {
     const slotDate = this.parseDateInput(weekStart);
     slotDate.setDate(slotDate.getDate() + dayOfWeek - 1);
     return slotDate < this.dateOnly(new Date());
+  }
+
+  private isMealSlotInPastForDate(dateValue: string, mealType: string): boolean {
+    const slotDate = this.dateOnly(this.parseDateInput(dateValue));
+    const today = this.dateOnly(new Date());
+    if (slotDate < today) return true;
+    if (slotDate > today) return false;
+
+    const currentHour = new Date().getHours();
+    if (mealType === 'breakfast') return currentHour >= 10;
+    if (mealType === 'lunch') return currentHour >= 14;
+    if (mealType === 'dinner') return currentHour >= 21;
+    return false;
+  }
+
+  private formatMealTypeLabel(mealType?: string): string {
+    if (mealType === 'breakfast') return 'Sáng';
+    if (mealType === 'lunch') return 'Trưa';
+    if (mealType === 'dinner') return 'Tối';
+    if (mealType === 'snack') return 'Phụ';
+    return 'đã chọn';
+  }
+
+  private formatChatDateLabel(dateValue: string): string {
+    const date = this.dateOnly(this.parseDateInput(dateValue));
+    const today = this.dateOnly(new Date());
+    const tomorrow = this.dateOnly(new Date());
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    if (date.getTime() === today.getTime()) return 'hôm nay';
+    if (date.getTime() === tomorrow.getTime()) return 'ngày mai';
+
+    const labels = [
+      'Chủ Nhật',
+      'Thứ Hai',
+      'Thứ Ba',
+      'Thứ Tư',
+      'Thứ Năm',
+      'Thứ Sáu',
+      'Thứ Bảy',
+    ];
+    return `ngày ${labels[date.getDay()]}`;
   }
 
   private parseDateInput(value: string): Date {

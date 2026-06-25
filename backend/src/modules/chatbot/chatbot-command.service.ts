@@ -477,6 +477,7 @@ export class ChatbotCommandService {
       ['ADD_RECIPE_TO_MEAL_PLAN', 'REPLACE_MEAL_ITEM', 'REMOVE_MEAL_ITEM'].includes(intent) &&
       !result.recipeId &&
       !result.recipeName &&
+      !(intent === 'REMOVE_MEAL_ITEM' && (result.scope === 'meal' || result.clearMealItems)) &&
       context.lastSelectedRecipe
     ) {
       result.recipeId = context.lastSelectedRecipe.id;
@@ -511,6 +512,9 @@ export class ChatbotCommandService {
     }
     if (intent === 'REMOVE_MEAL_ITEM' && entities.scope === 'item' && !entities.recipeId && !entities.recipeName) {
       return { missing: 'recipe' as const, text: 'Bạn muốn xóa món nào?' };
+    }
+    if (intent === 'REMOVE_MEAL_ITEM' && entities.scope === 'meal' && !entities.mealType) {
+      return { missing: 'mealType' as const, text: 'Bạn muốn xóa các món ở bữa sáng, trưa hay tối?' };
     }
     if (intent === 'ADD_INVENTORY_ITEM') {
       if (!entities.quantity) {
