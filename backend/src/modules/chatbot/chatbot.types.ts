@@ -91,6 +91,7 @@ export interface ChatbotQuickAction {
 
 export interface ChatbotCommandResponse {
   success: boolean;
+  reason?: string;
   text: string;
   message?: string;
   intent: ChatbotIntent;

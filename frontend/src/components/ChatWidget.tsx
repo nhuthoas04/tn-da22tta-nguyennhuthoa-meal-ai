@@ -198,7 +198,10 @@ export default function ChatWidget() {
     if (day) params.set('day', String(day));
     if (args.mealType) params.set('meal', args.mealType);
 
-    const mealDate = args.mealDate || (Array.isArray(args.mealDates) ? args.mealDates[0] : undefined);
+    const mealDate =
+      args.targetDate ||
+      args.mealDate ||
+      (Array.isArray(args.mealDates) ? args.mealDates[0] : undefined);
     if (mealDate) params.set('mealDate', String(mealDate));
 
     const query = params.toString();
@@ -513,11 +516,13 @@ export default function ChatWidget() {
         let filteredItems = planItems;
         let dayLabelText = '';
 
-        if (args.mealDate) {
-          filteredItems = planItems.filter((item: any) => item.mealDate === args.mealDate);
+        const targetDate =
+          args.targetDate ||
+          args.mealDate ||
+          (Array.isArray(args.mealDates) ? args.mealDates[0] : undefined);
+        if (targetDate) {
+          filteredItems = planItems.filter((item: any) => item.mealDate === targetDate);
           if (filteredItems.length > 0) dayLabelText = `ngày ${filteredItems[0].dayLabel}`;
-        } else if (args.mealDates && Array.isArray(args.mealDates) && args.mealDates.length > 0) {
-          filteredItems = planItems.filter((item: any) => args.mealDates.includes(item.mealDate));
         } else if (args.dayOfWeek) {
           const dayVal = Number(args.dayOfWeek);
           filteredItems = planItems.filter((item: any) => item.dayOfWeek === dayVal);

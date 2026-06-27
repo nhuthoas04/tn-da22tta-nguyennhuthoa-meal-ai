@@ -168,6 +168,29 @@ export class ChatbotCommandService {
     context: ChatbotConversationContext,
   ): Promise<ChatbotCommandResponse> {
     const enriched = this.applyContextDefaults(intent, entities, context);
+    const readonlyMessage = this.getReadonlyMutationMessage(intent, enriched);
+    if (readonlyMessage) {
+      return this.saveResponse(
+        userId,
+        message,
+        {
+          success: false,
+          reason: 'PAST_DATE_READONLY',
+          text: readonlyMessage,
+          message: readonlyMessage,
+          intent,
+          entities: enriched,
+          nextAction: 'NONE',
+        },
+        {
+          ...context,
+          pendingConfirmation: undefined,
+          pendingQuestion: undefined,
+          lastAction: intent,
+        },
+      );
+    }
+
     const clarification = this.getClarification(intent, enriched);
     if (clarification) {
       const nextContext: ChatbotConversationContext = {
@@ -223,6 +246,25 @@ export class ChatbotCommandService {
       const result = executed.result;
       if (result?.error) {
         throw new Error(result.error);
+      }
+      if (result?.success === false) {
+        const failureMessage =
+          result.message || 'MealAI chưa thể thực hiện thao tác này.';
+        return this.saveResponse(
+          userId,
+          message,
+          {
+            success: false,
+            reason: result.reason,
+            text: failureMessage,
+            message: failureMessage,
+            intent,
+            entities: enriched,
+            data: result,
+            nextAction: 'NONE',
+          },
+          { ...context, lastAction: intent },
+        );
       }
       const nextContext = this.updateContext(
         { ...context, pendingConfirmation: undefined, pendingQuestion: undefined },
@@ -353,9 +395,17 @@ export class ChatbotCommandService {
             targetRoute: '/meal-planner',
           };
         }
+        const targetDate = entities.date || this.formatDate(new Date());
+        const mealTypes = entities.mealType
+          ? [entities.mealType]
+          : this.getEditableMealTypes(targetDate);
         const args = {
-          mealDates: [entities.date],
+          targetDate,
+          mealDates: [targetDate],
           mealType: entities.mealType,
+          mealTypes,
+          scope: 'day',
+          source: 'chatbot',
           useAntiWaste: entities.useInventory !== false,
           overwrite: !!entities.confirmed,
           servings: entities.servings,
@@ -602,10 +652,16 @@ export class ChatbotCommandService {
         userId,
       );
       if (plan?.items?.length) {
-        const hasConflict = entities.period === 'week' || plan.items.some((item: any) =>
-          this.formatDate(item.mealDate) === entities.date &&
-          (!entities.mealType || item.mealType === entities.mealType),
-        );
+        const hasConflict = plan.items.some((item: any) => {
+          const itemDate = this.formatDate(item.mealDate);
+          if (entities.period !== 'week' && itemDate !== entities.date) {
+            return false;
+          }
+          if (entities.mealType && item.mealType !== entities.mealType) {
+            return false;
+          }
+          return !this.isMealSlotInPast(itemDate, item.mealType);
+        });
         if (hasConflict) {
           return 'Thực đơn đã có món. Bạn có chắc muốn tạo lại và thay thế các món hiện tại không?';
         }
@@ -683,7 +739,7 @@ export class ChatbotCommandService {
           ? `Mình tìm thấy ${recipes.length} món phù hợp: ${recipes.slice(0, 5).map((r: any) => r.name).join(', ')}.`
           : 'Chưa tìm thấy món phù hợp với các điều kiện hiện tại.';
       case 'CREATE_MEAL_PLAN':
-        return 'Đã tạo thực đơn cho bạn. Bạn có thể xem tại trang Thực đơn.';
+        return result?.message || 'Đã tạo thực đơn cho bạn. Bạn có thể xem tại trang Thực đơn.';
       case 'ADD_RECIPE_TO_MEAL_PLAN':
         return `Đã thêm ${entities.recipeName || 'món đã chọn'} vào ${this.mealLabel(entities.mealType)} ngày ${entities.date}.`;
       case 'REPLACE_MEAL_ITEM':
@@ -850,6 +906,75 @@ export class ChatbotCommandService {
     const day = new Date(`${value}T00:00:00`).getDay();
     const labels = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
     return labels[day] || 'Ngày này';
+  }
+
+  private getReadonlyMutationMessage(
+    intent: ChatbotIntent,
+    entities: ChatbotEntities,
+  ): string | undefined {
+    if (
+      ![
+        'CREATE_MEAL_PLAN',
+        'ADD_RECIPE_TO_MEAL_PLAN',
+        'REPLACE_MEAL_ITEM',
+        'REMOVE_MEAL_ITEM',
+      ].includes(intent) ||
+      !entities.date
+    ) {
+      return undefined;
+    }
+
+    if (this.isDateInPast(entities.date)) {
+      return intent === 'CREATE_MEAL_PLAN'
+        ? 'Ngày này đã qua nên không thể tạo lại thực đơn. Bạn chỉ có thể xem lại thực đơn.'
+        : 'Ngày/bữa này đã qua nên không thể chỉnh sửa. Bạn chỉ có thể xem lại thực đơn.';
+    }
+
+    if (entities.mealType && this.isMealSlotInPast(entities.date, entities.mealType)) {
+      return 'Ngày/bữa này đã qua nên không thể chỉnh sửa. Bạn chỉ có thể xem lại thực đơn.';
+    }
+
+    if (
+      intent === 'CREATE_MEAL_PLAN' &&
+      entities.period !== 'week' &&
+      this.getEditableMealTypes(entities.date).length === 0
+    ) {
+      return 'Các bữa trong ngày này đã qua nên không thể tạo lại thực đơn. Bạn chỉ có thể xem lại thực đơn.';
+    }
+
+    if (
+      intent === 'REMOVE_MEAL_ITEM' &&
+      entities.scope === 'day' &&
+      this.getEditableMealTypes(entities.date).length === 0
+    ) {
+      return 'Ngày/bữa này đã qua nên không thể chỉnh sửa. Bạn chỉ có thể xem lại thực đơn.';
+    }
+
+    return undefined;
+  }
+
+  private getEditableMealTypes(dateValue: string): Array<'breakfast' | 'lunch' | 'dinner'> {
+    return (['breakfast', 'lunch', 'dinner'] as const).filter(
+      (mealType) => !this.isMealSlotInPast(dateValue, mealType),
+    );
+  }
+
+  private isDateInPast(dateValue: string): boolean {
+    const target = new Date(`${dateValue.slice(0, 10)}T00:00:00`);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return target < today;
+  }
+
+  private isMealSlotInPast(dateValue: string, mealType: string): boolean {
+    if (this.isDateInPast(dateValue)) return true;
+    if (dateValue !== this.formatDate(new Date())) return false;
+
+    const hour = new Date().getHours();
+    if (mealType === 'breakfast') return hour >= 10;
+    if (mealType === 'lunch') return hour >= 14;
+    if (mealType === 'dinner') return hour >= 21;
+    return false;
   }
 
   private normalize(value: string): string {

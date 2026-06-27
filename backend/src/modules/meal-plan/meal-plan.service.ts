@@ -959,6 +959,9 @@ export class MealPlanService {
       weekStart?: string;
       days?: number[];
       mealDates?: string[];
+      targetDate?: string;
+      scope?: 'day' | 'week';
+      source?: string;
       useAntiWaste?: boolean;
       mealType?: string;
       mealTypes?: string[];
@@ -973,7 +976,7 @@ export class MealPlanService {
       forceRefresh?: boolean;
     },
   ) {
-    let mealDates = dto.mealDates;
+    let mealDates = dto.targetDate ? [dto.targetDate] : dto.mealDates;
     if ((!mealDates || mealDates.length === 0) && dto.weekStart && dto.days) {
       const start = this.parseDateInput(dto.weekStart);
       mealDates = dto.days.map((day) => {
@@ -991,9 +994,11 @@ export class MealPlanService {
 
     const parsedDates = mealDates.map((d) => this.parseDateInput(d));
     if (parsedDates.some((date) => this.isDateInPast(date))) {
-      throw new BadRequestException(
-        'Không thể cập nhật thực đơn của bữa đã qua.',
-      );
+      throw new BadRequestException({
+        success: false,
+        reason: 'PAST_DATE_READONLY',
+        message: 'Ngày này đã qua nên không thể tạo lại thực đơn.',
+      });
     }
     parsedDates.forEach((date) => this.ensureDateIsCreatable(date));
     const requestedMealTypes = (
@@ -1015,9 +1020,12 @@ export class MealPlanService {
       ),
     );
     if (!hasAvailableMealSlot) {
-      throw new BadRequestException(
-        'Không thể cập nhật thực đơn của bữa đã qua.',
-      );
+      throw new BadRequestException({
+        success: false,
+        reason: 'PAST_DATE_READONLY',
+        message:
+          'Các bữa trong ngày này đã qua nên không thể tạo lại thực đơn.',
+      });
     }
 
     // Find weekStart from the first date

@@ -154,6 +154,9 @@ export class MealPlanController {
       weekStart?: string;
       days?: number[];
       mealDates?: string[];
+      targetDate?: string;
+      scope?: 'day' | 'week';
+      source?: string;
       useAntiWaste?: boolean;
       mealType?: string;
       mealTypes?: string[];

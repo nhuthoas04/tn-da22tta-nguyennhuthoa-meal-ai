@@ -509,7 +509,8 @@ export class ChatbotActionHandler {
             );
             return (
               itemDate === targetDate &&
-              (!args.mealType || item.mealType === args.mealType)
+              (!args.mealType || item.mealType === args.mealType) &&
+              !this.isMealSlotInPastForDate(targetDate, item.mealType)
             );
           });
           if (targets.length === 0) {
@@ -532,7 +533,7 @@ export class ChatbotActionHandler {
         }
 
         case 'generate_meal_plan_for_days':
-          let mealDates = args.mealDates;
+          let mealDates = args.targetDate ? [args.targetDate] : args.mealDates;
           if ((!mealDates || mealDates.length === 0) && args.days) {
             const startW = args.weekStart || this.getMondayString(new Date());
             const daysArray = Array.isArray(args.days)
@@ -547,6 +548,34 @@ export class ChatbotActionHandler {
           }
           if (!mealDates || mealDates.length === 0) {
             mealDates = [this.formatDateInput(new Date())];
+          }
+
+          if (mealDates.some((date: string) => this.isPastDateValue(date))) {
+            return {
+              success: false,
+              reason: 'PAST_DATE_READONLY',
+              message: 'Ngày này đã qua nên không thể tạo lại thực đơn.',
+            };
+          }
+
+          const requestedMealTypes = Array.isArray(args.mealTypes)
+            ? args.mealTypes
+            : args.mealType
+              ? [args.mealType]
+              : ['breakfast', 'lunch', 'dinner'];
+          const editableMealTypes = requestedMealTypes.filter((mealType: string) =>
+            mealDates.some(
+              (date: string) =>
+                !this.isMealSlotInPastForDate(date, mealType),
+            ),
+          );
+          if (editableMealTypes.length === 0) {
+            return {
+              success: false,
+              reason: 'PAST_DATE_READONLY',
+              message:
+                'Các bữa trong ngày này đã qua nên không thể tạo lại thực đơn.',
+            };
           }
 
           for (const mDate of mealDates) {
@@ -573,8 +602,12 @@ export class ChatbotActionHandler {
             userId,
             {
               mealDates,
+              targetDate: args.targetDate,
+              scope: args.scope,
+              source: args.source,
               useAntiWaste: args.useAntiWaste !== false,
               mealType: args.mealType,
+              mealTypes: editableMealTypes,
               overwrite: args.overwrite === true,
               options: {
                 preferNewRecipes:
@@ -588,7 +621,12 @@ export class ChatbotActionHandler {
               },
             },
           );
-          return daysResult;
+          const targetDate = args.targetDate || mealDates[0];
+          return {
+            ...daysResult,
+            targetDate,
+            message: `Tôi đã tạo thực đơn cho ngày ${this.formatCalendarDate(targetDate)}.`,
+          };
 
         case 'get_meal_plan':
           const currentWeekStart =
