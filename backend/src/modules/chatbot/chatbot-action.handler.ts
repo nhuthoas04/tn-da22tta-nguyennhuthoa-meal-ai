@@ -487,9 +487,22 @@ export class ChatbotActionHandler {
 
         case 'remove_meal_day': {
           const targetDate = args.mealDate || this.formatDateInput(new Date());
+          const formattedTargetDate = this.formatCalendarDate(targetDate);
+          if (this.isPastDateValue(targetDate)) {
+            return {
+              removedCount: 0,
+              message: `Ngày ${formattedTargetDate} đã qua nên không thể xóa thực đơn. Bạn chỉ có thể xem lại thực đơn ngày đó.`,
+            };
+          }
+
           const weekStart = this.getMondayString(this.parseDateInput(targetDate));
           const targetPlan = await this.mealPlanService.findByWeek(userId, weekStart);
-          if (!targetPlan) return { message: 'Không có thực đơn để xóa.' };
+          if (!targetPlan) {
+            return {
+              removedCount: 0,
+              message: `Ngày ${formattedTargetDate} hiện chưa có món nào để xóa.`,
+            };
+          }
           const targets = targetPlan.items.filter((item: any) => {
             const itemDate = this.formatDateInput(
               this.parseDateInput(String(item.mealDate)),
@@ -499,12 +512,10 @@ export class ChatbotActionHandler {
               (!args.mealType || item.mealType === args.mealType)
             );
           });
-          if (this.isPastDateValue(targetDate)) {
-            const names = this.formatRecipeNames(targets);
+          if (targets.length === 0) {
             return {
-              message: names
-                ? `Ngày ${this.formatChatDateLabel(targetDate)} đã qua nên không thể xóa thực đơn. Các món hiện có: ${names}.`
-                : `Ngày ${this.formatChatDateLabel(targetDate)} đã qua và hiện không có món nào.`,
+              removedCount: 0,
+              message: `Ngày ${formattedTargetDate} hiện chưa có món nào để xóa.`,
             };
           }
           for (const item of targets) {
@@ -516,7 +527,7 @@ export class ChatbotActionHandler {
             id: targetPlan.id,
             weekStart,
             removedCount: targets.length,
-            message: `Đã xóa ${targets.length} món khỏi thực đơn.`,
+            message: `Tôi đã xóa tất cả món trong thực đơn ngày ${formattedTargetDate} của bạn.`,
           };
         }
 
@@ -887,5 +898,14 @@ export class ChatbotActionHandler {
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+  }
+
+  private formatCalendarDate(dateValue: string): string {
+    const date = this.parseDateInput(dateValue);
+    return [
+      String(date.getDate()).padStart(2, '0'),
+      String(date.getMonth() + 1).padStart(2, '0'),
+      date.getFullYear(),
+    ].join('/');
   }
 }

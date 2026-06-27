@@ -164,6 +164,19 @@ export class ChatbotIntentService {
     return ['khong', 'huy', 'thoi', 'de sau', 'khong can'].includes(text);
   }
 
+  isAllMealsReply(message: string): boolean {
+    const text = this.normalize(message).replace(/[.!?]/g, '').trim();
+    return [
+      'tat ca',
+      'toan bo',
+      'het',
+      'ca ngay',
+      'nguyen ngay',
+      'tat ca bua',
+      'toan bo bua',
+    ].includes(text);
+  }
+
   extractEntities(
     original: string,
     normalized?: string,
@@ -216,7 +229,15 @@ export class ChatbotIntentService {
       entities.expirationDate = this.formatDate(this.addDays(new Date(), Number(expiry[1])));
     }
 
-    const clearMealItems = this.isClearMealItemsRequest(text);
+    const clearFullDay = this.isClearFullDayRequest(
+      text,
+      entities.date,
+      entities.mealType,
+    );
+    const clearMealItems =
+      clearFullDay ||
+      this.isClearMealItemsRequest(text) ||
+      this.isMealWideDeleteRequest(text, entities.mealType);
     if (clearMealItems) {
       entities.clearMealItems = true;
     }
@@ -232,7 +253,11 @@ export class ChatbotIntentService {
       }
     } else if (/^(xóa|bỏ)\b/iu.test(original) && !clearMealItems) {
       const removeMatch = original.match(/^(?:xóa|bỏ)\s+(?:món\s+)?(.+?)(?:\s+khỏi|\s+trong|$)/iu);
-      if (removeMatch && !/^(này|toàn bộ|cả)$/iu.test(removeMatch[1].trim())) {
+      if (
+        removeMatch &&
+        !/^(này|toàn bộ|cả)$/iu.test(removeMatch[1].trim()) &&
+        !this.isGenericDeleteTarget(this.normalize(removeMatch[1]))
+      ) {
         entities.recipeName = this.cleanRecipeName(removeMatch[1]);
       }
     }
@@ -251,13 +276,20 @@ export class ChatbotIntentService {
       delete entities.recipeName;
     }
 
-    if (clearMealItems) {
+    if (clearFullDay) {
+      delete entities.recipeId;
+      delete entities.recipeName;
+      delete entities.mealType;
+      entities.scope = 'day';
+      entities.period = 'day';
+    } else if (clearMealItems) {
       delete entities.recipeId;
       delete entities.recipeName;
       entities.scope = 'meal';
     } else if (entities.removeCount) entities.scope = 'meal';
     else if (this.hasAny(text, ['toan bo bua', 'ca bua'])) entities.scope = 'meal';
     else if (this.hasAny(text, ['lam trong thuc don ngay', 'toan bo thuc don', 'xoa ngay'])) entities.scope = 'day';
+    else if (!entities.recipeName && this.isAmbiguousMealDeleteRequest(text)) entities.scope = 'meal';
     else entities.scope = 'item';
 
     if (this.hasAny(text, ['tao lai', 'ghi de', 'thay toan bo'])) entities.overwrite = true;
@@ -371,6 +403,46 @@ export class ChatbotIntentService {
       /\b(?:xoa|bo)\s+(?:cac|het|toan bo|tat ca)\s+mon\s+(?:o|trong|khoi)?\s*(?:bua|buoi)\b/.test(text) ||
       /\b(?:don|clear)\s+(?:bua|buoi)\b/.test(text) ||
       /\bbo\s+het\s+mon\b/.test(text)
+    );
+  }
+
+  private isClearFullDayRequest(
+    text: string,
+    date?: string,
+    mealType?: ChatbotEntities['mealType'],
+  ): boolean {
+    if (!date || mealType || !/^(?:xoa|bo)\b/.test(text)) return false;
+
+    return (
+      /\b(?:cac|het|toan bo|tat ca)\s+mon\b/.test(text) ||
+      /\b(?:het|toan bo|tat ca)\s+thuc don\b/.test(text) ||
+      /\b(?:ca|nguyen)\s+ngay\b/.test(text) ||
+      /^(?:xoa|bo)\s+(?:het\s+)?thuc don\b/.test(text) ||
+      /\bthuc don\s+ngay\b/.test(text)
+    );
+  }
+
+  private isMealWideDeleteRequest(
+    text: string,
+    mealType?: ChatbotEntities['mealType'],
+  ): boolean {
+    if (!mealType || !/^(?:xoa|bo)\b/.test(text)) return false;
+
+    return (
+      /^(?:xoa|bo)\s+(?:mon\s+)?(?:bua|buoi)\s+(?:sang|trua|toi)\b/.test(text) ||
+      /^(?:xoa|bo)\s+(?:mon\s+)?(?:sang|trua|toi)\b/.test(text)
+    );
+  }
+
+  private isAmbiguousMealDeleteRequest(text: string): boolean {
+    return /^(?:xoa|bo)\s+(?:mon|bua|buoi|thuc don)(?:\s+(?:hom nay|hom qua|ngay mai|ngay kia|ngay\s+\d{1,2}[/-]\d{1,2}(?:[/-]\d{4})?))?$/.test(
+      text,
+    );
+  }
+
+  private isGenericDeleteTarget(text: string): boolean {
+    return /^(?:thuc don|bua|buoi|hom nay|hom qua|ngay mai|ngay kia|ngay\s+\d{1,2}[/-]\d{1,2}(?:[/-]\d{4})?|\d{1,2}[/-]\d{1,2}(?:[/-]\d{4})?)$/.test(
+      text.trim(),
     );
   }
 

@@ -60,6 +60,29 @@ export class ChatbotCommandService {
     }
 
     if (context.pendingQuestion) {
+      if (
+        context.pendingQuestion.intent === 'REMOVE_MEAL_ITEM' &&
+        context.pendingQuestion.missing === 'mealType' &&
+        this.intentService.isAllMealsReply(message)
+      ) {
+        const fullDayEntities: ChatbotEntities = {
+          ...context.pendingQuestion.entities,
+          scope: 'day',
+          period: 'day',
+          clearMealItems: true,
+        };
+        delete fullDayEntities.mealType;
+        delete fullDayEntities.recipeId;
+        delete fullDayEntities.recipeName;
+        return this.processKnownIntent(
+          userId,
+          message,
+          context.pendingQuestion.intent,
+          fullDayEntities,
+          { ...context, pendingQuestion: undefined },
+        );
+      }
+
       const followUp = this.intentService.extractEntities(message, undefined, context);
       if (
         context.pendingQuestion.intent === 'ADD_INVENTORY_ITEM' &&
@@ -70,6 +93,15 @@ export class ChatbotCommandService {
       }
       const merged = { ...context.pendingQuestion.entities, ...followUp };
       const missing = context.pendingQuestion.missing;
+      if (
+        context.pendingQuestion.intent === 'REMOVE_MEAL_ITEM' &&
+        missing === 'mealType' &&
+        followUp.mealType
+      ) {
+        merged.scope = context.pendingQuestion.entities.scope;
+        merged.clearMealItems =
+          context.pendingQuestion.entities.clearMealItems;
+      }
       const isAnswered =
         (missing === 'date' && !!merged.date) ||
         (missing === 'mealType' && !!merged.mealType) ||
@@ -493,7 +525,12 @@ export class ChatbotCommandService {
       ['ADD_RECIPE_TO_MEAL_PLAN', 'REPLACE_MEAL_ITEM', 'REMOVE_MEAL_ITEM'].includes(intent) &&
       !result.recipeId &&
       !result.recipeName &&
-      !(intent === 'REMOVE_MEAL_ITEM' && (result.scope === 'meal' || result.clearMealItems)) &&
+      !(
+        intent === 'REMOVE_MEAL_ITEM' &&
+        (result.scope === 'meal' ||
+          result.scope === 'day' ||
+          result.clearMealItems)
+      ) &&
       context.lastSelectedRecipe
     ) {
       result.recipeId = context.lastSelectedRecipe.id;
