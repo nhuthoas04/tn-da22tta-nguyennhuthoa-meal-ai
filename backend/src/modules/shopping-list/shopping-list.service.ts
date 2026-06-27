@@ -225,6 +225,30 @@ export class ShoppingListService {
 
     const filteredItems = this.filterMealPlanItems(planItems, days, mealDates);
 
+    // Validate past dates
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    if (mealDates && mealDates.length > 0) {
+      for (const dStr of mealDates) {
+        const itemDate = new Date(dStr);
+        itemDate.setHours(0, 0, 0, 0);
+        if (itemDate < today) {
+          throw new BadRequestException('Không thể tạo danh sách mua sắm cho ngày đã qua.');
+        }
+      }
+    }
+
+    for (const item of filteredItems) {
+      if (item.mealDate) {
+        const itemDate = new Date(item.mealDate);
+        itemDate.setHours(0, 0, 0, 0);
+        if (itemDate < today) {
+          throw new BadRequestException('Không thể tạo danh sách mua sắm cho ngày đã qua.');
+        }
+      }
+    }
+
     await this.rollbackExistingMealPlanLists(userId, mealPlanId);
 
     const list = await this.createShoppingList(userId, mealPlanId, days);

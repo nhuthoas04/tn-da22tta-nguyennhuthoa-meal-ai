@@ -125,8 +125,9 @@ export default function MealPlannerPage() {
   };
 
   const exportDayToShoppingList = async (dayOfWeek: number) => {
-    if (isPastSlotDate(weekStart, dayOfWeek - 1)) {
-      toast.error('Ngày này đã qua, chỉ có thể tạo danh sách cho hôm nay hoặc tương lai.');
+    const dateStr = getSlotDateInput(weekStart, dayOfWeek - 1);
+    if (isPastMealDate(dateStr)) {
+      toast.error('Ngày đã qua, không thể tạo danh sách mua sắm.');
       return;
     }
     if (!plan) { toast.error('Vui lòng chọn món ăn trước khi tạo danh sách mua sắm!'); return; }
@@ -1011,7 +1012,7 @@ export default function MealPlannerPage() {
                             {aiSuggestingDay === dayOfWeekNumber ? 'Đang gợi ý...' : '✨ AI Gợi Ý'}
                           </button>
                         )}
-                        {plan && (
+                        {plan && !isPastMealPlanDate && (
                           <button
                             onClick={() => exportDayToShoppingList(dayOfWeekNumber)}
                             className="btn-outline-sm"

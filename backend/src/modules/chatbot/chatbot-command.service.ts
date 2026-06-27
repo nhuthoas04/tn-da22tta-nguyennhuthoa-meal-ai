@@ -389,6 +389,15 @@ export class ChatbotCommandService {
         };
       }
       case 'GENERATE_SHOPPING_LIST': {
+        if (entities.date) {
+          const targetDate = new Date(`${entities.date}T00:00:00`);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          if (targetDate < today) {
+            const dayLabel = this.getDayLabelFromDate(entities.date);
+            throw new Error(`${dayLabel} đã qua nên không thể tạo danh sách mua sắm mới. Bạn chỉ có thể xem lại thực đơn ngày đó.`);
+          }
+        }
         const weekStart = this.getMondayString(entities.date || new Date());
         const plan = await this.actionHandler.handleAction(
           'get_meal_plan',
@@ -798,6 +807,12 @@ export class ChatbotCommandService {
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+  }
+
+  private getDayLabelFromDate(value: string): string {
+    const day = new Date(`${value}T00:00:00`).getDay();
+    const labels = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+    return labels[day] || 'Ngày này';
   }
 
   private normalize(value: string): string {
