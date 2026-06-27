@@ -1245,6 +1245,13 @@ export class MealPlanService {
                 mealTypesToGenerate.includes(itemToReplace.mealType) &&
                 !this.isMealSlotInPast(date, itemToReplace.mealType)
               ) {
+                const calorieTarget = this.calorieService.getMealDistribution(user?.dailyCalorieTarget || 2000);
+                const recTarget = calorieTarget ? calorieTarget[itemToReplace.mealType] || 700 : 700;
+                const recCurrent = dayItemsList
+                  .filter((item) => item.mealType === itemToReplace.mealType && item.recipe && item.id !== itemToReplace.id)
+                  .reduce((sum, item) => sum + Number(item.recipe?.calories || item.calories || 0), 0);
+                const recRemaining = Math.max(0, recTarget - recCurrent);
+
                 const recs =
                   await this.recommendationService.getRecommendations(
                     userId,
@@ -1268,6 +1275,9 @@ export class MealPlanService {
                       ],
                       weeklyUsedRecipeIds: Array.from(usedRecipeIds),
                       previousDayRecipeIds,
+                      mealTargetCalories: recTarget,
+                      currentMealCalories: recCurrent,
+                      remainingMealCalories: recRemaining,
                     },
                   );
 
@@ -1349,6 +1359,13 @@ export class MealPlanService {
         const neededCount = slotTargets[mealType]?.neededCount || 0;
         if (neededCount <= 0) continue;
 
+        const calorieTarget = this.calorieService.getMealDistribution(user?.dailyCalorieTarget || 2000);
+        const recTarget = calorieTarget ? calorieTarget[mealType] || 700 : 700;
+        const recCurrent = dayItemsList
+          .filter((item) => item.mealType === mealType && item.recipe)
+          .reduce((sum, item) => sum + Number(item.recipe?.calories || item.calories || 0), 0);
+        const recRemaining = Math.max(0, recTarget - recCurrent);
+
         const recs = await this.recommendationService.getRecommendations(
           userId,
           mealType,
@@ -1371,6 +1388,9 @@ export class MealPlanService {
             ],
             weeklyUsedRecipeIds: Array.from(usedRecipeIds),
             previousDayRecipeIds,
+            mealTargetCalories: recTarget,
+            currentMealCalories: recCurrent,
+            remainingMealCalories: recRemaining,
           },
         );
 
@@ -1485,6 +1505,13 @@ export class MealPlanService {
             continue;
           }
 
+          const calorieTarget = this.calorieService.getMealDistribution(user?.dailyCalorieTarget || 2000);
+          const recTarget = calorieTarget ? calorieTarget[mealType] || 700 : 700;
+          const recCurrent = dayItemsList
+            .filter((item) => item.mealType === mealType && item.recipe)
+            .reduce((sum, item) => sum + Number(item.recipe?.calories || item.calories || 0), 0);
+          const recRemaining = Math.max(0, recTarget - recCurrent);
+
           const recs = await this.recommendationService.getRecommendations(
             userId,
             mealType,
@@ -1507,6 +1534,9 @@ export class MealPlanService {
               ],
               weeklyUsedRecipeIds: Array.from(usedRecipeIds),
               previousDayRecipeIds,
+              mealTargetCalories: recTarget,
+              currentMealCalories: recCurrent,
+              remainingMealCalories: recRemaining,
             },
           );
           this.logRepeatDebug(

@@ -117,12 +117,25 @@ const hasNutritionData = (data: NutritionData | null) => {
   return totalDishes > 0;
 };
 
-const computeMacroTargets = (calorieTarget: number): MacroTargets => ({
-  calories: calorieTarget,
-  protein: 0,
-  carbs: 0,
-  fat: 0,
-});
+const computeMacroTargets = (calorieTarget: number, minProteinPerMeal?: number | null): MacroTargets => {
+  if (!calorieTarget || calorieTarget <= 0) {
+    return {
+      calories: 0,
+      protein: 0,
+      carbs: 0,
+      fat: 0,
+    };
+  }
+
+  return {
+    calories: Math.round(calorieTarget),
+    protein: minProteinPerMeal && minProteinPerMeal > 0
+      ? Math.round(minProteinPerMeal * 3)
+      : Math.round((calorieTarget * 0.15) / 4),
+    carbs: Math.round((calorieTarget * 0.55) / 4),
+    fat: Math.round((calorieTarget * 0.30) / 9),
+  };
+};
 
 const getCaloriesStatus = (value: number, target: number): NutrientStatus => {
   if (target <= 0) return { label: 'Chưa có mục tiêu', color: 'text-slate-500', bgColor: 'bg-slate-50', borderColor: 'border-slate-200' };
@@ -322,7 +335,7 @@ export default function NutritionPage() {
 
   /* ---- Compute targets & insights ---- */
   const calorieTarget = Number(nutrition?.calorieTarget || (user as any).dailyCalorieTarget) || 0;
-  const targets = computeMacroTargets(calorieTarget);
+  const targets = computeMacroTargets(calorieTarget, (user as any)?.preferences?.minProteinPerMeal);
   const trendInsights = nutrition
     ? buildTrendInsights(nutrition.daily, calorieTarget)
     : [];
@@ -534,6 +547,19 @@ function TodaySummaryCards({ daily, targets }: { daily: DailyNutrition[]; target
   const calStatus = getCaloriesStatus(cal, targets.calories);
   const calPct = targets.calories > 0 ? Math.min(100, Math.round((cal / targets.calories) * 100)) : undefined;
 
+  const getMacroStatus = (value: number, target: number): NutrientStatus => {
+    if (target <= 0) return { label: 'Chưa có mục tiêu', color: 'text-slate-500', bgColor: 'bg-slate-50', borderColor: 'border-slate-200' };
+    const ratio = value / target;
+    if (ratio < 0.7) return { label: 'Còn thấp', color: 'text-amber-600', bgColor: 'bg-amber-50', borderColor: 'border-amber-200' };
+    if (ratio <= 1.0) return { label: 'Hợp lý', color: 'text-emerald-600', bgColor: 'bg-emerald-50', borderColor: 'border-emerald-200' };
+    if (ratio <= 1.15) return { label: 'Hơi cao', color: 'text-orange-600', bgColor: 'bg-orange-50', borderColor: 'border-orange-200' };
+    return { label: 'Vượt mục tiêu', color: 'text-red-600', bgColor: 'bg-red-50', borderColor: 'border-red-200' };
+  };
+
+  const protPct = targets.protein > 0 ? Math.min(100, Math.round((prot / targets.protein) * 100)) : undefined;
+  const carbPct = targets.carbs > 0 ? Math.min(100, Math.round((carb / targets.carbs) * 100)) : undefined;
+  const fatPct = targets.fat > 0 ? Math.min(100, Math.round((fatVal / targets.fat) * 100)) : undefined;
+
   if (dishes === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/50 p-6 text-center">
@@ -576,8 +602,9 @@ function TodaySummaryCards({ daily, targets }: { daily: DailyNutrition[]; target
           title="Protein"
           value={formatNumber(prot)}
           unit="g"
-          target="Số liệu từ thực đơn"
-          status={actualDataStatus}
+          target={targets.protein > 0 ? `/ ${formatNumber(targets.protein)} g` : 'Chưa có mục tiêu'}
+          progress={protPct}
+          status={getMacroStatus(prot, targets.protein)}
           progressColor="bg-emerald-500"
           tooltip="Chất đạm, cần cho cơ bắp và phục hồi."
         />
@@ -586,8 +613,9 @@ function TodaySummaryCards({ daily, targets }: { daily: DailyNutrition[]; target
           title="Carbs"
           value={formatNumber(carb)}
           unit="g"
-          target="Số liệu từ thực đơn"
-          status={actualDataStatus}
+          target={targets.carbs > 0 ? `/ ${formatNumber(targets.carbs)} g` : 'Chưa có mục tiêu'}
+          progress={carbPct}
+          status={getMacroStatus(carb, targets.carbs)}
           progressColor="bg-sky-500"
           tooltip="Nguồn năng lượng chính từ tinh bột và đường."
         />
@@ -596,8 +624,9 @@ function TodaySummaryCards({ daily, targets }: { daily: DailyNutrition[]; target
           title="Fat"
           value={formatNumber(fatVal)}
           unit="g"
-          target="Số liệu từ thực đơn"
-          status={actualDataStatus}
+          target={targets.fat > 0 ? `/ ${formatNumber(targets.fat)} g` : 'Chưa có mục tiêu'}
+          progress={fatPct}
+          status={getMacroStatus(fatVal, targets.fat)}
           progressColor="bg-purple-500"
           tooltip="Chất béo, cần thiết nhưng nên kiểm soát."
         />
@@ -704,6 +733,8 @@ function NutritionChartsSection({
             nutrient="protein"
             label="Protein"
             color="#10b981"
+            targetLine={targets.protein}
+            targetLabel={`Mục tiêu: ${targets.protein}g`}
           />
         </ChartCard>
 
@@ -716,6 +747,8 @@ function NutritionChartsSection({
             nutrient="carbs"
             label="Carbs"
             color="#0ea5e9"
+            targetLine={targets.carbs}
+            targetLabel={`Mục tiêu: ${targets.carbs}g`}
           />
         </ChartCard>
 
@@ -728,6 +761,8 @@ function NutritionChartsSection({
             nutrient="fat"
             label="Fat"
             color="#8b5cf6"
+            targetLine={targets.fat}
+            targetLabel={`Mục tiêu: ${targets.fat}g`}
           />
         </ChartCard>
       </div>
@@ -759,8 +794,8 @@ function NutritionTable({ data, targets }: { data: DailyNutrition[]; targets: Ma
           <h3 className="text-lg font-bold text-gray-900">Bảng chi tiết dinh dưỡng theo ngày</h3>
           <p className="mt-1 text-xs text-gray-400">
             {targets.calories > 0
-              ? `Calories được so sánh với TDEE ${formatNumber(targets.calories)} kcal/ngày. Các macro chỉ hiển thị số liệu thực tế vì hồ sơ chưa có mục tiêu protein, carbs và fat riêng.`
-              : 'Chưa có TDEE để so sánh calories. Protein, carbs và fat chỉ hiển thị số liệu thực tế.'}
+              ? `Calories, Protein, Carbs, Fat được so sánh với mục tiêu tính từ TDEE (Calories: ${formatNumber(targets.calories)} kcal, Protein: ${targets.protein}g, Carbs: ${targets.carbs}g, Fat: ${targets.fat}g).`
+              : 'Chưa có TDEE để so sánh chỉ số dinh dưỡng.'}
           </p>
         </div>
       </div>

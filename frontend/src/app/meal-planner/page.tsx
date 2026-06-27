@@ -18,6 +18,30 @@ const MEALS = [
   { key: 'dinner',    label: 'Tối'  },
 ];
 
+const formatNumber = (val: number) => Math.round(val).toLocaleString('vi-VN');
+
+function getMealTargetCalories(tdee: number, mealType: string) {
+  if (!tdee || tdee <= 0) return null;
+
+  if (mealType === 'breakfast') return Math.round(tdee * 0.3);
+  if (mealType === 'lunch') return Math.round(tdee * 0.4);
+  if (mealType === 'dinner') return Math.round(tdee * 0.3);
+
+  return null;
+}
+
+function getMealCalories(items: any[]) {
+  return items.reduce((total, item) => {
+    return total + Number(item.recipe?.calories || item.calories || 0);
+  }, 0);
+}
+
+function getDayCalories(dayItems: any[]) {
+  return dayItems.reduce((total, item) => {
+    return total + Number(item.recipe?.calories || item.calories || 0);
+  }, 0);
+}
+
 type PortionWarningState = MealPortionWarningResult & {
   dayOfWeek: number;
   mealDate: string;
@@ -930,6 +954,15 @@ export default function MealPlannerPage() {
                         <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
                           Đã sử dụng: {usedDishesCount}/{maxDishesCount} món
                         </span>
+                        <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-brand-primary/10 text-brand-primary border border-brand-primary/20">
+                          {(() => {
+                            const tdee = getUserDailyCalories();
+                            const dayCalories = getDayCalories(dayItemsForDay);
+                            return tdee && tdee > 0
+                              ? `Tổng: ${formatNumber(dayCalories)}/${formatNumber(tdee)} kcal`
+                              : `Tổng: ${formatNumber(dayCalories)} kcal`;
+                          })()}
+                        </span>
                       </h2>
                       {isToday && (
                         <span className="rounded-brand-sm bg-brand-primary px-2 py-0.5 text-xs font-semibold text-white">
@@ -997,8 +1030,42 @@ export default function MealPlannerPage() {
                         >
                           {/* Meal Column Header */}
                           <div className="flex items-center justify-between border-b border-brand-light-border px-3 py-2">
-                            <span className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                              {meal.label}
+                            <span className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wider flex-wrap">
+                              <span>
+                                {meal.label.toUpperCase()} · {itemsForSlot.length} món · {(() => {
+                                  const tdee = getUserDailyCalories();
+                                  const mealCalories = getMealCalories(itemsForSlot);
+                                  const mealTarget = tdee && tdee > 0 ? getMealTargetCalories(tdee, meal.key) : null;
+                                  return mealTarget !== null
+                                    ? `${formatNumber(mealCalories)}/${formatNumber(mealTarget)} kcal`
+                                    : `${formatNumber(mealCalories)} kcal`;
+                                })()}
+                              </span>
+                              {(() => {
+                                const tdee = getUserDailyCalories();
+                                const mealCalories = getMealCalories(itemsForSlot);
+                                const mealTarget = tdee && tdee > 0 ? getMealTargetCalories(tdee, meal.key) : null;
+                                if (!mealTarget || mealTarget <= 0 || itemsForSlot.length === 0) return null;
+                                if (mealCalories > mealTarget * 1.15) {
+                                  return (
+                                    <span className="rounded-full bg-red-50 border border-red-200 px-1.5 py-0.5 text-[9px] font-bold text-red-600 normal-case tracking-normal">
+                                      Vượt kcal
+                                    </span>
+                                  );
+                                }
+                                if (mealCalories < mealTarget * 0.6) {
+                                  return (
+                                    <span className="rounded-full bg-amber-50 border border-amber-200 px-1.5 py-0.5 text-[9px] font-bold text-amber-600 normal-case tracking-normal">
+                                      Thấp kcal
+                                    </span>
+                                  );
+                                }
+                                return (
+                                  <span className="rounded-full bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 text-[9px] font-bold text-emerald-600 normal-case tracking-normal">
+                                    Hợp lý
+                                  </span>
+                                );
+                              })()}
                               {isPastMealItemSlot && (
                                 <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-semibold normal-case tracking-normal text-slate-400">
                                   Đã qua

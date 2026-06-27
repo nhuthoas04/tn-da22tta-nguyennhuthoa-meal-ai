@@ -47,11 +47,12 @@ type RecommendationOptions = {
 export class RecommendationService {
   // Scoring weights (must sum to 1.0)
   private readonly WEIGHTS = {
-    nutritionHealth: 0.3,
-    ingredientMatch: 0.25,
-    wasteReduction: 0.2,
+    nutritionHealth: 0.25,
+    ingredientMatch: 0.20,
+    wasteReduction: 0.15,
     preferenceMatch: 0.15,
-    cookTimeScore: 0.1,
+    cookTimeScore: 0.10,
+    caloriesScore: 0.15,
   };
 
   // Anti-waste urgency tiers based on days until expiration
@@ -322,24 +323,9 @@ export class RecommendationService {
       // Calculate calories score
       const remainingCalories = remainingMealCalories;
       const recipeCalories = Number(recipe.calories || 0);
-      let caloriesScoreVal = 0;
-      if (targetForMeal && targetForMeal > 0) {
-        if (!remainingCalories || remainingCalories <= 0) {
-          caloriesScoreVal = recipeCalories <= 150 ? 5 : -20;
-        } else {
-          const diff = Math.abs(remainingCalories - recipeCalories);
-          if (recipeCalories <= remainingCalories && diff <= 150) {
-            caloriesScoreVal = 20;
-          } else if (recipeCalories <= remainingCalories) {
-            caloriesScoreVal = 10;
-          } else if (recipeCalories <= remainingCalories * 1.2) {
-            caloriesScoreVal = 0;
-          } else {
-            caloriesScoreVal = -15;
-          }
-        }
-      }
-      const caloriesScoreAdjust = caloriesScoreVal / 100; // range from -0.20 to +0.20
+      const caloriesScoreVal = this.calculateCaloriesScore(recipeCalories, remainingCalories);
+      // Normalize caloriesScoreVal from [-20, 20] range to [0, 1.0] for the weighted sum
+      const caloriesScoreNorm = (caloriesScoreVal + 20) / 40;
 
       // Calculate dynamic diversity score adjustment
       let diversityScore = 0;
@@ -411,7 +397,8 @@ export class RecommendationService {
         scores.ingredientMatch * this.WEIGHTS.ingredientMatch +
         scores.wasteReduction * this.WEIGHTS.wasteReduction +
         scores.preferenceMatch * this.WEIGHTS.preferenceMatch +
-        scores.cookTimeScore * this.WEIGHTS.cookTimeScore;
+        scores.cookTimeScore * this.WEIGHTS.cookTimeScore +
+        caloriesScoreNorm * this.WEIGHTS.caloriesScore;
 
       // Apply user habit adjustments and diversity score
       const habitAdjust = habitScores.get(recipe.id) || 0;
@@ -420,8 +407,7 @@ export class RecommendationService {
         habitAdjust +
         diversityScore +
         newRecipeBonus / 100 -
-        repeatPenalty / 100 +
-        caloriesScoreAdjust;
+        repeatPenalty / 100;
       total = Math.max(0, Math.min(1.0, unclampedTotal));
 
       // Generate human-readable reasons
@@ -479,6 +465,7 @@ export class RecommendationService {
           mealPlanHistoryCount: historyCount,
           usedInLast7Days: isUsedInLast7Days,
           ...scores,
+          caloriesScore: caloriesScoreNorm,
         },
         reasons,
         matchedInventory,
