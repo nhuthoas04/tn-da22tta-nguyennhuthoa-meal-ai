@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 import { useEffect, useState, useRef } from 'react';
 import { useInView } from 'framer-motion';
 import { useAuth } from '@/context/AuthContext';
@@ -17,6 +17,14 @@ import {
   HiHeart, HiChevronRight, HiCheck, HiOutlineChatAlt, HiUser,
   HiPlus, HiFolderOpen
 } from 'react-icons/hi';
+import {
+  LuChefHat,
+  LuCalendarDays,
+  LuRefrigerator,
+  LuShoppingBasket,
+  LuBrainCircuit,
+  LuApple
+} from 'react-icons/lu';
 
 type RecommendationItem = {
   recipe: any;
@@ -782,16 +790,16 @@ export default function HomePage() {
 
           <StaggerContainer className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[
-              { icon: HiSparkles, color: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20', title: 'AI Gợi ý món ăn', desc: 'Đề xuất các món ăn tối ưu nhất dựa trên sở thích, dị ứng, calories mục tiêu và nguyên liệu sẵn có trong tủ lạnh của bạn.' },
-              { icon: HiCalendar, color: 'text-blue-500 bg-blue-500/10 border-blue-500/20', title: 'Lập thực đơn tuần', desc: 'Tự động thiết kế kế hoạch ăn uống 3 bữa/ngày cho cả tuần chỉ trong 1 cú click. Tùy biến số lượng người ăn linh hoạt.' },
-              { icon: HiCube, color: 'text-purple-500 bg-purple-500/10 border-purple-500/20', title: 'Tủ lạnh thông minh', desc: 'Quản lý số lượng và thời gian hết hạn của nguyên liệu trong nhà. Nhận cảnh báo thông minh trước khi thực phẩm bị hỏng.' },
-              { icon: HiShoppingCart, color: 'text-pink-500 bg-pink-500/10 border-pink-500/20', title: 'Danh sách mua sắm', desc: 'Tự động tạo danh sách đi chợ, gộp các nguyên liệu trùng nhau từ thực đơn tuần và trừ đi phần thực phẩm đã có sẵn.' },
-              { icon: HiLightningBolt, color: 'text-amber-500 bg-amber-500/10 border-amber-500/20', title: 'AI Insights', desc: 'Phân tích thói quen ăn uống, đưa ra khuyến nghị dinh dưỡng cá nhân hóa nhằm cải thiện sức khỏe và lối sống lành mạnh.' },
-              { icon: HiFire, color: 'text-rose-500 bg-rose-500/10 border-rose-500/20', title: 'Tính calo & dinh dưỡng', desc: 'Công thức Mifflin-St Jeor giúp tính toán TDEE và nhu cầu năng lượng mỗi ngày, hỗ trợ kiểm soát cân nặng khoa học.' },
+              { icon: LuChefHat, color: 'text-emerald-600 bg-emerald-50 border-emerald-100', title: 'AI Gợi ý món ăn', desc: 'Đề xuất các món ăn tối ưu nhất dựa trên sở thích, dị ứng, calories mục tiêu và nguyên liệu sẵn có trong tủ lạnh của bạn.' },
+              { icon: LuCalendarDays, color: 'text-blue-600 bg-blue-50 border-blue-100', title: 'Lập thực đơn tuần', desc: 'Tự động thiết kế kế hoạch ăn uống 3 bữa/ngày cho cả tuần chỉ trong 1 cú click. Tùy biến số lượng người ăn linh hoạt.' },
+              { icon: LuRefrigerator, color: 'text-purple-600 bg-purple-50 border-purple-100', title: 'Tủ lạnh thông minh', desc: 'Quản lý số lượng và thời gian hết hạn của nguyên liệu trong nhà. Nhận cảnh báo thông minh trước khi thực phẩm bị hỏng.' },
+              { icon: LuShoppingBasket, color: 'text-pink-600 bg-pink-50 border-pink-100', title: 'Danh sách mua sắm', desc: 'Tự động tạo danh sách đi chợ, gộp các nguyên liệu trùng nhau từ thực đơn tuần và trừ đi phần thực phẩm đã có sẵn.' },
+              { icon: LuBrainCircuit, color: 'text-amber-600 bg-amber-50 border-amber-100', title: 'AI Insights', desc: 'Phân tích thói quen ăn uống, đưa ra khuyến nghị dinh dưỡng cá nhân hóa nhằm cải thiện sức khỏe và lối sống lành mạnh.' },
+              { icon: LuApple, color: 'text-rose-600 bg-rose-50 border-rose-100', title: 'Tính calo & dinh dưỡng', desc: 'Công thức Mifflin-St Jeor giúp tính toán TDEE và nhu cầu năng lượng mỗi ngày, hỗ trợ kiểm soát cân nặng khoa học.' },
             ].map((feature, i) => (
               <FadeInUp key={i} className="glassmorphism rounded-2xl p-6 text-left transition duration-300 transform hover:-translate-y-1 hover:border-brand-primary/35 hover:shadow-brand-md group">
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center border ${feature.color} mb-4 group-hover:scale-105 transition`}>
-                  <feature.icon className="text-2xl" />
+                <div className={`w-14 h-14 rounded-xl flex items-center justify-center border ${feature.color} mb-4 group-hover:scale-105 transition shadow-sm`}>
+                  <feature.icon className="text-3xl" />
                 </div>
                 <h3 className="text-lg font-bold text-slate-900 mb-2">{feature.title}</h3>
                 <p className="text-slate-505 text-xs sm:text-sm leading-relaxed">{feature.desc}</p>
