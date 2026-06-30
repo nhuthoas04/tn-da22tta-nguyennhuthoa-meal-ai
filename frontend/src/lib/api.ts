@@ -79,10 +79,6 @@ export const authAPI = {
         api.post('/auth/forgot-password', { email }, { timeout: 12000 }),
     resetPassword: (data: any) => api.post('/auth/reset-password', data),
 
-    // Email Verification
-    verifyEmail: (token: string) => api.post('/auth/verify-email', { token }),
-    resendVerificationEmail: (email: string) =>
-        api.post('/auth/resend-verification-email', { email }),
 };
 
 // ==================== RECIPES API ====================

@@ -2,31 +2,25 @@
 import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { HiCheckCircle, HiSparkles } from 'react-icons/hi';
+import { HiSparkles } from 'react-icons/hi';
 
 export default function RegisterPage() {
   const { register } = useAuth();
+  const router = useRouter();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [registeredEmail, setRegisteredEmail] = useState('');
-  const [verificationEmailSent, setVerificationEmailSent] = useState(true);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
-      const result = await register(email, password, fullName);
-      const emailSent = result?.emailSent !== false;
-      setVerificationEmailSent(emailSent);
-      setRegisteredEmail(email);
-      if (emailSent) {
-        toast.success('Đăng ký thành công. Vui lòng kiểm tra email để xác thực tài khoản.');
-      } else {
-        toast.error(result?.message || 'Tài khoản đã được tạo nhưng chưa thể gửi email xác thực.');
-      }
+      await register(email, password, fullName);
+      toast.success('Đăng ký thành công. Bạn có thể đăng nhập ngay.');
+      router.push(`/login?email=${encodeURIComponent(email)}`);
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Đăng ký thất bại. Email có thể đã tồn tại.');
     } finally {
@@ -43,31 +37,7 @@ export default function RegisterPage() {
           <p className="text-gray-500 mt-2">Bắt đầu lên kế hoạch bữa ăn</p>
         </div>
 
-        {registeredEmail ? (
-          <div className="bg-white rounded-2xl shadow-sm border border-emerald-100 p-8 text-center">
-            <HiCheckCircle className={`text-6xl mx-auto mb-4 ${verificationEmailSent ? 'text-emerald-600' : 'text-amber-500'}`} />
-            <h2 className="text-2xl font-bold text-gray-900">
-              {verificationEmailSent ? 'Kiểm tra email của bạn' : 'Tài khoản đã được tạo'}
-            </h2>
-            <p className="mt-3 text-gray-600">
-              {verificationEmailSent ? (
-                <>MealAI đã gửi link xác thực đến <strong>{registeredEmail}</strong>. Vui lòng mở Gmail và bấm vào link xác thực để kích hoạt tài khoản.</>
-              ) : (
-                <>MealAI chưa thể gửi email đến <strong>{registeredEmail}</strong>. Hãy quay lại đăng nhập và chọn gửi lại email xác thực.</>
-              )}
-            </p>
-            <p className="mt-3 text-sm text-gray-500">
-              Link xác thực có hiệu lực trong 24 giờ. Nếu không thấy email, hãy kiểm tra thư rác.
-            </p>
-            <Link
-              href={`/login?email=${encodeURIComponent(registeredEmail)}`}
-              className="mt-6 inline-flex w-full items-center justify-center rounded-xl bg-emerald-600 px-4 py-3 font-medium text-white transition hover:bg-emerald-700"
-            >
-              Quay lại đăng nhập
-            </Link>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 space-y-5">
+        <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 space-y-5">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Họ tên</label>
               <input
@@ -117,8 +87,7 @@ export default function RegisterPage() {
                 Đăng nhập
               </Link>
             </p>
-          </form>
-        )}
+        </form>
       </div>
     </div>
   );
