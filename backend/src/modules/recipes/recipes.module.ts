@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { RecipesController } from './recipes.controller';
 import { AdminModerationController } from './admin-moderation.controller';
+import { AdminReviewController } from './admin-review.controller';
 import { FavoritesController } from './favorites.controller';
 import { RecipesService } from './recipes.service';
 import { RecipeModerationService } from './recipe-moderation.service';
@@ -38,6 +39,7 @@ import { NotificationModule } from '../notification/notification.module';
   controllers: [
     RecipesController,
     AdminModerationController,
+    AdminReviewController,
     FavoritesController,
   ],
   providers: [

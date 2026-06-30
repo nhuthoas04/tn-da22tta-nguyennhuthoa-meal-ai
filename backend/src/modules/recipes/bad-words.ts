@@ -1,0 +1,33 @@
+export const BAD_WORDS = [
+  'địt',
+  'dit',
+  'đụ',
+  'du',
+  'đéo',
+  'deo',
+  'cặc',
+  'cac',
+  'lồn',
+  'lon',
+  'đĩ',
+  'ngu',
+  'chó',
+  'súc vật',
+  'djt',
+  'vcl',
+  'đcm',
+  'dcm',
+  'đmm',
+  'dmm',
+  'dm',
+  'fuck',
+  'fucking',
+  'shit',
+  'bitch',
+  'bastard',
+  'idiot',
+  'retard',
+] as const;
+
+export const INAPPROPRIATE_REVIEW_TEXT = 'Nội dung không phù hợp';
+export const FLAGGED_REVIEW_REASON = 'Nội dung chứa từ ngữ không phù hợp';

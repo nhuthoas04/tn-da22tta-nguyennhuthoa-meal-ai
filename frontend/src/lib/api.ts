@@ -278,6 +278,9 @@ export const chatbotAPI = {
 
 // ==================== ADMIN MODERATION API ====================
 export const adminModerationAPI = {
+    getFlaggedReviews: () => api.get('/admin/reviews/flagged'),
+    deleteFlaggedReview: (reviewId: string) => api.delete(`/admin/reviews/${reviewId}`),
+    ignoreFlaggedReview: (reviewId: string) => api.patch(`/admin/reviews/${reviewId}/ignore`),
     getNotifications: () => api.get('/admin/moderation/notifications'),
     markNotificationAsRead: (id: string) => api.patch(`/admin/moderation/notifications/${id}/read`),
     approveReview: (reviewId: string) => api.post(`/admin/moderation/reviews/${reviewId}/approve`),

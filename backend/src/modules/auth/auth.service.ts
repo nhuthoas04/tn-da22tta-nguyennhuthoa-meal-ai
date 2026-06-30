@@ -362,7 +362,7 @@ export class AuthService {
       .innerJoin('rating.recipe', 'recipe')
       .select('AVG(rating.rating)', 'avg')
       .where('recipe.submittedBy = :userId', { userId })
-      .andWhere('rating.moderationStatus = :status', { status: 'reviewed' })
+      .andWhere('rating.moderationStatus != :status', { status: 'removed' })
       .getRawOne();
     const averageRating = parseFloat(ratingResult?.avg || '0');
 

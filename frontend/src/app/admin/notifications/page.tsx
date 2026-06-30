@@ -1,246 +1,207 @@
 'use client';
+
 import { useEffect, useState } from 'react';
-import { adminModerationAPI } from '@/lib/api';
 import toast from 'react-hot-toast';
 import {
-  HiBell, HiCheck, HiTrash, HiUserCircle, HiExclamation,
-  HiEye, HiCheckCircle, HiLockOpen
+  HiExclamation,
+  HiOutlineChatAlt2,
+  HiStar,
+  HiTrash,
+  HiX,
 } from 'react-icons/hi';
+import { adminModerationAPI } from '@/lib/api';
 
 export default function AdminNotificationsPage() {
-  const [notifications, setNotifications] = useState<any[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [reviews, setReviews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [processingId, setProcessingId] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadNotifications();
-  }, []);
-
-  const loadNotifications = async () => {
+  const loadFlaggedReviews = async () => {
     setLoading(true);
     try {
-      const res = await adminModerationAPI.getNotifications();
-      setNotifications(res.data.data || []);
-      setUnreadCount(res.data.unreadCount || 0);
-      // Trigger Navbar count sync
-      window.dispatchEvent(new Event('update-notifications-count'));
-    } catch (err) {
-      console.error(err);
-      toast.error('Không thể tải danh sách cảnh báo.');
+      const response = await adminModerationAPI.getFlaggedReviews();
+      setReviews(response.data.data || []);
+    } catch (error) {
+      console.error(error);
+      toast.error('Không thể tải danh sách cảnh báo đánh giá.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleMarkAsRead = async (id: string) => {
+  useEffect(() => {
+    void loadFlaggedReviews();
+  }, []);
+
+  const removeFromList = (reviewId: string) => {
+    setReviews((current) => current.filter((review) => review.id !== reviewId));
+    window.dispatchEvent(new Event('update-notifications-count'));
+  };
+
+  const handleIgnore = async (reviewId: string) => {
+    setProcessingId(reviewId);
     try {
-      await adminModerationAPI.markNotificationAsRead(id);
-      toast.success('Đã đánh dấu đã đọc');
-      loadNotifications();
-    } catch (err) {
-      console.error(err);
-      toast.error('Có lỗi xảy ra');
+      await adminModerationAPI.ignoreFlaggedReview(reviewId);
+      removeFromList(reviewId);
+      toast.success('Đã bỏ qua cảnh báo. Nội dung vẫn được che.');
+    } catch (error) {
+      console.error(error);
+      toast.error('Không thể bỏ qua cảnh báo.');
+    } finally {
+      setProcessingId(null);
     }
   };
 
-  const handleApproveReview = async (reviewId: string) => {
-    try {
-      await adminModerationAPI.approveReview(reviewId);
-      toast.success('Đã duyệt bình luận (bỏ qua cảnh báo)');
-      loadNotifications();
-    } catch (err) {
-      console.error(err);
-      toast.error('Không thể duyệt bình luận');
-    }
-  };
+  const handleDelete = async (reviewId: string) => {
+    if (!window.confirm('Xóa vĩnh viễn đánh giá hoặc bình luận này?')) return;
 
-  const handleRejectReview = async (reviewId: string) => {
-    if (!confirm('Bạn có chắc chắn muốn gỡ bỏ bình luận này khỏi hệ thống?')) return;
+    setProcessingId(reviewId);
     try {
-      await adminModerationAPI.rejectReview(reviewId);
-      toast.success('Đã gỡ bỏ bình luận vi phạm');
-      loadNotifications();
-    } catch (err) {
-      console.error(err);
-      toast.error('Không thể gỡ bình luận');
-    }
-  };
-
-  const handleUnlockUser = async (userId: string) => {
-    if (!confirm('Đặt lại số lần vi phạm và mở khóa quyền bình luận cho người dùng này?')) return;
-    try {
-      await adminModerationAPI.unlockUser(userId);
-      toast.success('Đã mở khóa tài khoản thành công!');
-      loadNotifications();
-    } catch (err) {
-      console.error(err);
-      toast.error('Không thể mở khóa tài khoản');
+      await adminModerationAPI.deleteFlaggedReview(reviewId);
+      removeFromList(reviewId);
+      toast.success('Đã xóa nội dung vi phạm.');
+    } catch (error) {
+      console.error(error);
+      toast.error('Không thể xóa nội dung vi phạm.');
+    } finally {
+      setProcessingId(null);
     }
   };
 
   if (loading) {
     return (
-      <div className="space-y-6 animate-pulse">
-        <div className="h-10 w-48 bg-gray-200 rounded-lg" />
-        <div className="space-y-4">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-32 bg-white rounded-2xl border border-gray-200" />
-          ))}
-        </div>
+      <div className="space-y-4 animate-pulse">
+        <div className="h-8 w-72 rounded bg-slate-200" />
+        {[1, 2, 3].map((item) => (
+          <div key={item} className="h-44 rounded-lg border border-slate-200 bg-white" />
+        ))}
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <HiBell className="text-purple-600" />
-          Thông báo vi phạm & Kiểm duyệt
-        </h1>
-        <p className="text-gray-500 mt-1">Kiểm soát và xử lý các nội dung vi phạm chính sách của MealAI</p>
-      </div>
-
-      {/* Stats */}
-      <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm max-w-sm flex items-center justify-between">
+      <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Cảnh báo chưa đọc</p>
-          <p className="text-3xl font-extrabold text-red-500 mt-1">{unreadCount}</p>
+          <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-900">
+            <HiExclamation className="text-amber-500" />
+            Cảnh báo nội dung đánh giá
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Kiểm tra đánh giá và phản hồi chứa từ ngữ không phù hợp.
+          </p>
         </div>
-        <div className="p-3.5 bg-red-50 rounded-2xl text-red-500">
-          <HiExclamation className="text-3xl animate-bounce" />
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-800">
+          {reviews.length} cảnh báo chưa xử lý
         </div>
-      </div>
+      </header>
 
-      {/* Notification List */}
-      <div className="space-y-4">
-        {notifications.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
-            <p className="text-5xl mb-3">🛡️</p>
-            <p className="text-gray-500 font-semibold">Tất cả đều sạch! Chưa phát hiện vi phạm nào.</p>
-          </div>
-        ) : (
-          notifications.map((notif: any) => {
-            const hasUser = !!notif.user;
-            const hasReview = !!notif.review;
-            const isLocked = hasUser && notif.user.commentLockedUntil && new Date(notif.user.commentLockedUntil) > new Date();
+      {reviews.length === 0 ? (
+        <div className="rounded-lg border border-slate-200 bg-white px-6 py-14 text-center">
+          <HiOutlineChatAlt2 className="mx-auto text-4xl text-emerald-500" />
+          <p className="mt-3 font-semibold text-slate-800">Không có nội dung cần xem xét</p>
+          <p className="mt-1 text-sm text-slate-500">Các đánh giá thông thường đã được hiển thị tự động.</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {reviews.map((review) => {
+            const busy = processingId === review.id;
+            const words = String(review.flaggedWords || '')
+              .split(',')
+              .map((word) => word.trim())
+              .filter(Boolean);
 
             return (
-              <div
-                key={notif.id}
-                className={`bg-white rounded-2xl border transition hover:shadow-md p-5 flex flex-col md:flex-row gap-4 items-start justify-between ${
-                  !notif.isRead ? 'border-red-200 bg-red-50/10 ring-2 ring-red-50' : 'border-gray-200'
-                }`}
-              >
-                {/* Details */}
-                <div className="space-y-3 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                      !notif.isRead ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'
-                    }`}>
-                      {!notif.isRead ? 'Chưa đọc' : 'Đã đọc'}
-                    </span>
-                    <span className="text-xs text-gray-400">
-                      {new Date(notif.createdAt).toLocaleString('vi-VN')}
-                    </span>
+              <article key={review.id} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0 flex-1 space-y-4">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+                      <span className="font-semibold text-slate-900">
+                        {review.user?.fullName || 'Người dùng đã bị xóa'}
+                      </span>
+                      <span className="text-slate-500">{review.user?.email}</span>
+                      <span className="text-slate-400">
+                        {new Date(review.createdAt).toLocaleString('vi-VN')}
+                      </span>
+                    </div>
+
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="rounded-lg bg-slate-50 p-3">
+                        <p className="text-xs font-semibold uppercase text-slate-400">Công thức</p>
+                        <p className="mt-1 font-semibold text-slate-800">
+                          {review.recipe?.name || 'Công thức đã bị xóa'}
+                        </p>
+                      </div>
+                      <div className="rounded-lg bg-slate-50 p-3">
+                        <p className="text-xs font-semibold uppercase text-slate-400">Đánh giá</p>
+                        <div className="mt-1 flex items-center gap-1 text-amber-400">
+                          {review.rating ? (
+                            Array.from({ length: 5 }).map((_, index) => (
+                              <HiStar
+                                key={index}
+                                className={index < review.rating ? 'text-amber-400' : 'text-slate-200'}
+                              />
+                            ))
+                          ) : (
+                            <span className="text-sm text-slate-600">Phản hồi bình luận</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 text-sm">
+                      <p>
+                        <span className="font-semibold text-slate-600">Nội dung công khai: </span>
+                        <span className="text-slate-800">{review.review}</span>
+                      </p>
+                      <p>
+                        <span className="font-semibold text-slate-600">Nội dung gốc: </span>
+                        <span className="text-red-700">{review.originalReview}</span>
+                      </p>
+                      <p>
+                        <span className="font-semibold text-slate-600">Lý do: </span>
+                        <span className="text-slate-800">{review.flaggedReason}</span>
+                      </p>
+                    </div>
+
+                    {words.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-semibold text-slate-500">Từ vi phạm:</span>
+                        {words.map((word) => (
+                          <span key={word} className="rounded bg-red-50 px-2 py-1 text-xs font-semibold text-red-700">
+                            {word}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
-                  <h3 className="font-bold text-gray-900 text-base">{notif.title}</h3>
-                  <p className="text-sm text-gray-600 whitespace-pre-line">{notif.message}</p>
-
-                  {/* Review Detail Box */}
-                  {hasReview && (
-                    <div className="mt-2 bg-gray-50 border border-gray-200 rounded-xl p-4 text-sm space-y-2">
-                      <p className="font-semibold text-gray-700">Chi tiết bình luận:</p>
-                      <div>
-                        <span className="text-gray-400">Món ăn: </span>
-                        <span className="font-medium text-gray-900">{notif.review.recipe?.name || 'Món đã bị xóa'}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-400">Nội dung gốc: </span>
-                        <span className="font-medium text-red-700">{notif.review.originalReview}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-400">Nội dung hiển thị (Censored): </span>
-                        <span className="font-medium text-gray-700">{notif.review.review}</span>
-                      </div>
-                      {notif.review.flaggedWords && (
-                        <div>
-                          <span className="text-gray-400">Từ cấm phát hiện: </span>
-                          <span className="font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded text-xs">{notif.review.flaggedWords}</span>
-                        </div>
-                      )}
-                      <div>
-                        <span className="text-gray-400">Trạng thái kiểm duyệt: </span>
-                        <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
-                          notif.review.moderationStatus === 'pending' ? 'bg-amber-100 text-amber-700' :
-                          notif.review.moderationStatus === 'reviewed' ? 'bg-green-100 text-green-700' :
-                          'bg-gray-100 text-gray-500'
-                        }`}>
-                          {notif.review.moderationStatus === 'pending' ? 'Đang chờ duyệt' :
-                           notif.review.moderationStatus === 'reviewed' ? 'Đã duyệt' : 'Đã gỡ bỏ'}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Violator stats */}
-                  {hasUser && (
-                    <div className="flex items-center gap-2 mt-2 bg-purple-50/50 border border-purple-100 rounded-xl p-3 text-xs text-purple-900 w-fit">
-                      <HiUserCircle className="text-purple-600 text-lg" />
-                      <div>
-                        Thành viên: <span className="font-bold">{notif.user.fullName}</span> ({notif.user.email}) | 
-                        Số lần vi phạm: <span className="font-bold text-red-600">{notif.user.violationCount}</span>
-                        {isLocked && <span className="ml-1 text-red-600 font-extrabold">(Tài khoản đang bị khóa bình luận)</span>}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Actions */}
-                <div className="flex flex-row md:flex-col gap-2 w-full md:w-auto shrink-0 pt-4 md:pt-0 border-t md:border-t-0 border-gray-100">
-                  {!notif.isRead && (
+                  <div className="flex shrink-0 gap-2">
                     <button
-                      onClick={() => handleMarkAsRead(notif.id)}
-                      className="flex-1 md:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2 border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold rounded-xl text-xs transition"
+                      type="button"
+                      disabled={busy}
+                      onClick={() => handleIgnore(review.id)}
+                      className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                     >
-                      <HiEye />
-                      Đánh dấu đã đọc
+                      <HiX />
+                      Bỏ qua
                     </button>
-                  )}
-                  {hasReview && notif.review.moderationStatus === 'pending' && (
-                    <>
-                      <button
-                        onClick={() => handleApproveReview(notif.reviewId)}
-                        className="flex-1 md:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-xs transition shadow-sm"
-                      >
-                        <HiCheck />
-                        Phê duyệt (Hiển thị)
-                      </button>
-                      <button
-                        onClick={() => handleRejectReview(notif.reviewId)}
-                        className="flex-1 md:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl text-xs transition shadow-sm"
-                      >
-                        <HiTrash />
-                        Gỡ bỏ bình luận
-                      </button>
-                    </>
-                  )}
-                  {hasUser && (notif.user.violationCount > 0 || isLocked) && (
                     <button
-                      onClick={() => handleUnlockUser(notif.userId)}
-                      className="flex-1 md:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl text-xs transition shadow-sm"
+                      type="button"
+                      disabled={busy}
+                      onClick={() => handleDelete(review.id)}
+                      className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
                     >
-                      <HiLockOpen />
-                      Mở khóa User
+                      <HiTrash />
+                      Xóa
                     </button>
-                  )}
+                  </div>
                 </div>
-              </div>
+              </article>
             );
-          })
-        )}
-      </div>
+          })}
+        </div>
+      )}
     </div>
   );
 }

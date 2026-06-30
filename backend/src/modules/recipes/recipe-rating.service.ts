@@ -6,13 +6,17 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { RecipeRating } from './entities/recipe-rating.entity';
 import { Recipe } from './entities/recipe.entity';
 import { User } from '../auth/entities/user.entity';
 import { AdminNotification } from './entities/admin-notification.entity';
 import { ReviewModerationService } from './review-moderation.service';
 import { NotificationService } from '../notification/notification.service';
+import {
+  FLAGGED_REVIEW_REASON,
+  INAPPROPRIATE_REVIEW_TEXT,
+} from './bad-words';
 
 @Injectable()
 export class RecipeRatingService {
@@ -52,67 +56,33 @@ export class RecipeRatingService {
       throw new NotFoundException('Không tìm thấy người dùng.');
     }
 
-    // Check if user is locked out from commenting
-    if (user.commentLockedUntil && new Date() < user.commentLockedUntil) {
-      const lockDate = new Date(user.commentLockedUntil).toLocaleString(
-        'vi-VN',
-      );
-      throw new ForbiddenException(
-        `Tài khoản của bạn tạm thời bị khóa quyền bình luận đến ${lockDate} do vi phạm nhiều lần.`,
-      );
-    }
-
-    // 2. Perform Keyword and AI moderation
-    let isFlagged = false;
-    let flaggedReason = '';
-    let flaggedWords = '';
-    let censoredReview = review;
-
-    // Apply Keyword filtering
-    const keywordResult = this.moderationService.filterBadWords(review);
-    if (keywordResult.isViolating) {
-      isFlagged = true;
-      censoredReview = keywordResult.censoredText;
-      flaggedWords = keywordResult.matchedWords.join(', ');
-      flaggedReason = `Từ ngữ nhạy cảm: ${flaggedWords}`;
-    }
-
-    // Apply AI Moderation if not flagged by keywords
-    if (!isFlagged && review.trim().length > 0) {
-      const aiResult = await this.moderationService.auditReviewWithAI(review);
-      if (aiResult.isFlagged) {
-        isFlagged = true;
-        flaggedReason = aiResult.reason || 'AI: Vi phạm nội quy';
-      }
-    }
-
-    // Determine moderationStatus
-    let moderationStatus = 'reviewed';
-    if (isFlagged || user.isCommentModerated) {
-      moderationStatus = 'pending';
-    }
-
-    // Handle user violation statistics & locks if a violation is newly detected
-    if (isFlagged) {
-      user.violationCount += 1;
-      if (user.violationCount >= 5) {
-        user.commentLockedUntil = new Date(
-          Date.now() + 7 * 24 * 60 * 60 * 1000,
-        ); // Lock 7 days
-      } else if (user.violationCount >= 3) {
-        user.isCommentModerated = true; // Flag for future manual reviews
-      }
-      await this.userRepo.save(user);
-    }
+    const normalizedReview = review?.trim() || '';
+    const keywordResult =
+      this.moderationService.filterBadWords(normalizedReview);
+    const isFlagged = keywordResult.isViolating;
+    const flaggedWords = isFlagged
+      ? keywordResult.matchedWords.join(', ')
+      : null;
+    const flaggedReason = isFlagged ? FLAGGED_REVIEW_REASON : null;
+    const publicReview = isFlagged
+      ? INAPPROPRIATE_REVIEW_TEXT
+      : normalizedReview;
+    const moderationStatus = isFlagged ? 'flagged' : 'approved';
 
     let ratingObj = await this.ratingRepo.findOne({
       where: { userId, recipeId },
     });
+    const wasFlagged = ratingObj?.isFlagged === true;
+
+    if (isFlagged && !wasFlagged) {
+      user.violationCount = (user.violationCount || 0) + 1;
+      await this.userRepo.save(user);
+    }
 
     if (ratingObj) {
       ratingObj.rating = rating;
-      ratingObj.review = censoredReview;
-      ratingObj.originalReview = review;
+      ratingObj.review = publicReview;
+      ratingObj.originalReview = isFlagged ? normalizedReview : null;
       ratingObj.isFlagged = isFlagged;
       ratingObj.flaggedWords = flaggedWords;
       ratingObj.flaggedReason = flaggedReason;
@@ -122,8 +92,8 @@ export class RecipeRatingService {
         userId,
         recipeId,
         rating,
-        review: censoredReview,
-        originalReview: review,
+        review: publicReview,
+        originalReview: isFlagged ? normalizedReview : null,
         isFlagged,
         flaggedWords,
         flaggedReason,
@@ -134,7 +104,7 @@ export class RecipeRatingService {
     const savedRating = await this.ratingRepo.save(ratingObj);
 
     // Send Personal Notification if not self-action and approved
-    if (recipe.submittedBy && moderationStatus === 'reviewed') {
+    if (recipe.submittedBy && moderationStatus === 'approved') {
       try {
         const actorName = user.fullName || 'Ai đó';
         if (review && review.trim().length > 0) {
@@ -165,18 +135,28 @@ export class RecipeRatingService {
     // Create AdminNotification if flagged
     if (isFlagged) {
       try {
-        const notification = this.notificationRepo.create({
-          title: 'Phát hiện bình luận chứa nội dung không phù hợp',
-          message: `Người dùng "${user.fullName}" đã gửi một bình luận vi phạm chính sách nội dung trên món ăn "${recipe.name}".\n\nNội dung gốc: "${review}"\nNội dung đã che: "${censoredReview}"\nLý do gắn cờ: ${flaggedReason}`,
-          type: 'review_violation',
-          reviewId: savedRating.id,
-          userId: user.id,
-          isRead: false,
-        });
+        const notification =
+          (await this.notificationRepo.findOne({
+            where: { reviewId: savedRating.id, isRead: false },
+          })) ||
+          this.notificationRepo.create({
+            type: 'review_violation',
+            reviewId: savedRating.id,
+            userId: user.id,
+          });
+        notification.title =
+          'Phát hiện bình luận chứa nội dung không phù hợp';
+        notification.message = `Có đánh giá chứa từ ngữ không phù hợp trong công thức "${recipe.name}".`;
+        notification.isRead = false;
         await this.notificationRepo.save(notification);
       } catch (err: any) {
         this.logger.error('Failed to create admin notification:', err.message);
       }
+    } else {
+      await this.notificationRepo.update(
+        { reviewId: savedRating.id },
+        { isRead: true },
+      );
     }
 
     return savedRating;
@@ -196,14 +176,9 @@ export class RecipeRatingService {
       .where('rating.recipeId = :recipeId', { recipeId })
       .andWhere('rating.parentId IS NULL');
 
-    if (currentUserId) {
-      qb.andWhere(
-        '(rating.moderationStatus = :status OR rating.userId = :userId)',
-        { status: 'reviewed', userId: currentUserId },
-      );
-    } else {
-      qb.andWhere('rating.moderationStatus = :status', { status: 'reviewed' });
-    }
+    qb.andWhere('rating.moderationStatus != :removedStatus', {
+      removedStatus: 'removed',
+    });
 
     const [data, total] = await qb
       .orderBy('rating.createdAt', 'DESC')
@@ -217,7 +192,6 @@ export class RecipeRatingService {
         id: r.id,
         rating: r.rating,
         review: r.review,
-        originalReview: r.originalReview,
         isFlagged: r.isFlagged,
         moderationStatus: r.moderationStatus,
         createdAt: r.createdAt,
@@ -227,14 +201,12 @@ export class RecipeRatingService {
           avatarUrl: r.user?.avatarUrl,
         },
         replies: (r.replies || [])
-          .filter(
-            (rep) =>
-              rep.moderationStatus === 'reviewed' ||
-              rep.userId === currentUserId,
-          )
+          .filter((rep) => rep.moderationStatus !== 'removed')
           .map((rep) => ({
             id: rep.id,
             review: rep.review,
+            isFlagged: rep.isFlagged,
+            moderationStatus: rep.moderationStatus,
             createdAt: rep.createdAt,
             user: {
               id: rep.user?.id,
@@ -276,62 +248,31 @@ export class RecipeRatingService {
       throw new NotFoundException('Không tìm thấy người dùng.');
     }
 
-    // Check if user is locked out
-    if (user.commentLockedUntil && new Date() < user.commentLockedUntil) {
-      const lockDate = new Date(user.commentLockedUntil).toLocaleString(
-        'vi-VN',
-      );
-      throw new ForbiddenException(
-        `Tài khoản của bạn tạm thời bị khóa quyền bình luận đến ${lockDate} do vi phạm nhiều lần.`,
-      );
-    }
-
     const recipe = await this.recipeRepo.findOne({
       where: { id: ratingObj.recipeId },
     });
 
-    // 2. Perform Keyword and AI moderation
-    let isFlagged = false;
-    let flaggedReason = '';
-    let flaggedWords = '';
-    let censoredReview = review;
+    const normalizedReview = review?.trim() || '';
+    const keywordResult =
+      this.moderationService.filterBadWords(normalizedReview);
+    const isFlagged = keywordResult.isViolating;
+    const flaggedWords = isFlagged
+      ? keywordResult.matchedWords.join(', ')
+      : null;
+    const flaggedReason = isFlagged ? FLAGGED_REVIEW_REASON : null;
+    const publicReview = isFlagged
+      ? INAPPROPRIATE_REVIEW_TEXT
+      : normalizedReview;
+    const moderationStatus = isFlagged ? 'flagged' : 'approved';
 
-    const keywordResult = this.moderationService.filterBadWords(review);
-    if (keywordResult.isViolating) {
-      isFlagged = true;
-      censoredReview = keywordResult.censoredText;
-      flaggedWords = keywordResult.matchedWords.join(', ');
-      flaggedReason = `Từ ngữ nhạy cảm: ${flaggedWords}`;
-    }
-
-    if (!isFlagged && review.trim().length > 0) {
-      const aiResult = await this.moderationService.auditReviewWithAI(review);
-      if (aiResult.isFlagged) {
-        isFlagged = true;
-        flaggedReason = aiResult.reason || 'AI: Vi phạm nội quy';
-      }
-    }
-
-    let moderationStatus = 'reviewed';
-    if (isFlagged || user.isCommentModerated) {
-      moderationStatus = 'pending';
-    }
-
-    if (isFlagged) {
-      user.violationCount += 1;
-      if (user.violationCount >= 5) {
-        user.commentLockedUntil = new Date(
-          Date.now() + 7 * 24 * 60 * 60 * 1000,
-        );
-      } else if (user.violationCount >= 3) {
-        user.isCommentModerated = true;
-      }
+    if (isFlagged && !ratingObj.isFlagged) {
+      user.violationCount = (user.violationCount || 0) + 1;
       await this.userRepo.save(user);
     }
 
     ratingObj.rating = rating;
-    ratingObj.review = censoredReview;
-    ratingObj.originalReview = review;
+    ratingObj.review = publicReview;
+    ratingObj.originalReview = isFlagged ? normalizedReview : null;
     ratingObj.isFlagged = isFlagged;
     ratingObj.flaggedWords = flaggedWords;
     ratingObj.flaggedReason = flaggedReason;
@@ -341,18 +282,28 @@ export class RecipeRatingService {
 
     if (isFlagged) {
       try {
-        const notification = this.notificationRepo.create({
-          title: 'Phát hiện bình luận chỉnh sửa chứa nội dung không phù hợp',
-          message: `Người dùng "${user.fullName}" đã sửa bình luận vi phạm chính sách nội dung trên món ăn "${recipe?.name || 'món ăn'}".\n\nNội dung gốc: "${review}"\nNội dung đã che: "${censoredReview}"\nLý do gắn cờ: ${flaggedReason}`,
-          type: 'review_violation',
-          reviewId: savedRating.id,
-          userId: user.id,
-          isRead: false,
-        });
+        const notification =
+          (await this.notificationRepo.findOne({
+            where: { reviewId: savedRating.id, isRead: false },
+          })) ||
+          this.notificationRepo.create({
+            type: 'review_violation',
+            reviewId: savedRating.id,
+            userId: user.id,
+          });
+        notification.title =
+          'Phát hiện bình luận chỉnh sửa chứa nội dung không phù hợp';
+        notification.message = `Có đánh giá chứa từ ngữ không phù hợp trong công thức "${recipe?.name || 'món ăn'}".`;
+        notification.isRead = false;
         await this.notificationRepo.save(notification);
       } catch (err: any) {
         this.logger.error('Failed to create admin notification:', err.message);
       }
+    } else {
+      await this.notificationRepo.update(
+        { reviewId: savedRating.id },
+        { isRead: true },
+      );
     }
 
     return savedRating;
@@ -386,7 +337,7 @@ export class RecipeRatingService {
       .select('AVG(rating.rating)', 'avg')
       .addSelect('COUNT(rating.id)', 'count')
       .where('rating.recipeId = :recipeId', { recipeId })
-      .andWhere('rating.moderationStatus = :status', { status: 'reviewed' })
+      .andWhere('rating.moderationStatus != :status', { status: 'removed' })
       .andWhere('rating.parentId IS NULL')
       .andWhere('rating.rating IS NOT NULL')
       .getRawOne();
@@ -428,51 +379,21 @@ export class RecipeRatingService {
       throw new NotFoundException('Không tìm thấy người dùng.');
     }
 
-    if (user.commentLockedUntil && new Date() < user.commentLockedUntil) {
-      const lockDate = new Date(user.commentLockedUntil).toLocaleString(
-        'vi-VN',
-      );
-      throw new ForbiddenException(
-        `Tài khoản của bạn tạm thời bị khóa quyền bình luận đến ${lockDate} do vi phạm nhiều lần.`,
-      );
-    }
-
-    // 2. Perform Keyword and AI moderation
-    let isFlagged = false;
-    let flaggedReason = '';
-    let flaggedWords = '';
-    let censoredReview = review;
-
-    const keywordResult = this.moderationService.filterBadWords(review);
-    if (keywordResult.isViolating) {
-      isFlagged = true;
-      censoredReview = keywordResult.censoredText;
-      flaggedWords = keywordResult.matchedWords.join(', ');
-      flaggedReason = `Từ ngữ nhạy cảm: ${flaggedWords}`;
-    }
-
-    if (!isFlagged && review.trim().length > 0) {
-      const aiResult = await this.moderationService.auditReviewWithAI(review);
-      if (aiResult.isFlagged) {
-        isFlagged = true;
-        flaggedReason = aiResult.reason || 'AI: Vi phạm nội quy';
-      }
-    }
-
-    let moderationStatus = 'reviewed';
-    if (isFlagged || user.isCommentModerated) {
-      moderationStatus = 'pending';
-    }
+    const normalizedReview = review.trim();
+    const keywordResult =
+      this.moderationService.filterBadWords(normalizedReview);
+    const isFlagged = keywordResult.isViolating;
+    const flaggedWords = isFlagged
+      ? keywordResult.matchedWords.join(', ')
+      : null;
+    const flaggedReason = isFlagged ? FLAGGED_REVIEW_REASON : null;
+    const publicReview = isFlagged
+      ? INAPPROPRIATE_REVIEW_TEXT
+      : normalizedReview;
+    const moderationStatus = isFlagged ? 'flagged' : 'approved';
 
     if (isFlagged) {
-      user.violationCount += 1;
-      if (user.violationCount >= 5) {
-        user.commentLockedUntil = new Date(
-          Date.now() + 7 * 24 * 60 * 60 * 1000,
-        );
-      } else if (user.violationCount >= 3) {
-        user.isCommentModerated = true;
-      }
+      user.violationCount = (user.violationCount || 0) + 1;
       await this.userRepo.save(user);
     }
 
@@ -481,8 +402,8 @@ export class RecipeRatingService {
       userId,
       rating: null,
       parentId,
-      review: censoredReview,
-      originalReview: review,
+      review: publicReview,
+      originalReview: isFlagged ? normalizedReview : null,
       isFlagged,
       flaggedWords,
       flaggedReason,
@@ -492,7 +413,7 @@ export class RecipeRatingService {
     const savedReply = await this.ratingRepo.save(reply);
 
     // Send Personal Notification for REPLY_COMMENT
-    if (parentRating.userId && moderationStatus === 'reviewed') {
+    if (parentRating.userId && moderationStatus === 'approved') {
       try {
         const actorName = user.fullName || 'Ai đó';
         const isRating =
@@ -520,7 +441,7 @@ export class RecipeRatingService {
       try {
         const notification = this.notificationRepo.create({
           title: 'Phát hiện phản hồi bình luận chứa nội dung không phù hợp',
-          message: `Người dùng "${user.fullName}" đã gửi một phản hồi vi phạm chính sách nội dung trên món ăn "${recipe.name}".\n\nNội dung gốc: "${review}"\nNội dung đã che: "${censoredReview}"\nLý do gắn cờ: ${flaggedReason}`,
+          message: `Có phản hồi chứa từ ngữ không phù hợp trong công thức "${recipe.name}".`,
           type: 'review_violation',
           reviewId: savedReply.id,
           userId: user.id,
@@ -536,6 +457,72 @@ export class RecipeRatingService {
   }
 
   // ==================== ADMIN MODERATION METHODS ====================
+  async getFlaggedReviews(): Promise<{
+    data: any[];
+    total: number;
+  }> {
+    const [data, total] = await this.ratingRepo.findAndCount({
+      where: {
+        moderationStatus: In(['flagged', 'pending']),
+        isFlagged: true,
+      },
+      relations: ['user', 'recipe'],
+      order: { createdAt: 'DESC' },
+    });
+
+    return {
+      data: data.map((review) => ({
+        id: review.id,
+        rating: review.rating,
+        review: review.review,
+        originalReview: review.originalReview,
+        flaggedWords: review.flaggedWords,
+        flaggedReason: review.flaggedReason,
+        moderationStatus: review.moderationStatus,
+        createdAt: review.createdAt,
+        user: review.user
+          ? {
+              id: review.user.id,
+              fullName: review.user.fullName,
+              email: review.user.email,
+              violationCount: review.user.violationCount,
+            }
+          : null,
+        recipe: review.recipe
+          ? {
+              id: review.recipe.id,
+              name: review.recipe.name,
+            }
+          : null,
+      })),
+      total,
+    };
+  }
+
+  async ignoreFlaggedReview(reviewId: string): Promise<RecipeRating> {
+    const review = await this.ratingRepo.findOne({ where: { id: reviewId } });
+    if (!review) {
+      throw new NotFoundException('Không tìm thấy bình luận.');
+    }
+
+    review.moderationStatus = 'ignored';
+    const saved = await this.ratingRepo.save(review);
+    await this.notificationRepo.update({ reviewId }, { isRead: true });
+    return saved;
+  }
+
+  async deleteFlaggedReview(
+    reviewId: string,
+  ): Promise<{ message: string }> {
+    const review = await this.ratingRepo.findOne({ where: { id: reviewId } });
+    if (!review) {
+      throw new NotFoundException('Không tìm thấy bình luận.');
+    }
+
+    await this.ratingRepo.remove(review);
+    return { message: 'Đã xóa bình luận vi phạm.' };
+  }
+
   async getAdminNotifications(): Promise<{
     data: AdminNotification[];
     unreadCount: number;
@@ -560,40 +547,11 @@ export class RecipeRatingService {
   }
 
   async approveReview(reviewId: string): Promise<RecipeRating> {
-    const review = await this.ratingRepo.findOne({ where: { id: reviewId } });
-    if (!review) {
-      throw new NotFoundException('Không tìm thấy bình luận.');
-    }
-    review.isFlagged = false;
-    review.moderationStatus = 'reviewed';
-    const saved = await this.ratingRepo.save(review);
-
-    const notification = await this.notificationRepo.findOne({
-      where: { reviewId },
-    });
-    if (notification) {
-      notification.isRead = true;
-      await this.notificationRepo.save(notification);
-    }
-    return saved;
+    return this.ignoreFlaggedReview(reviewId);
   }
 
-  async rejectReview(reviewId: string): Promise<RecipeRating> {
-    const review = await this.ratingRepo.findOne({ where: { id: reviewId } });
-    if (!review) {
-      throw new NotFoundException('Không tìm thấy bình luận.');
-    }
-    review.moderationStatus = 'removed';
-    const saved = await this.ratingRepo.save(review);
-
-    const notification = await this.notificationRepo.findOne({
-      where: { reviewId },
-    });
-    if (notification) {
-      notification.isRead = true;
-      await this.notificationRepo.save(notification);
-    }
-    return saved;
+  async rejectReview(reviewId: string): Promise<{ message: string }> {
+    return this.deleteFlaggedReview(reviewId);
   }
 
   async getUserRatings(

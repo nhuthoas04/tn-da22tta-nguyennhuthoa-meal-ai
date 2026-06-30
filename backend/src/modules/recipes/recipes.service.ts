@@ -6,7 +6,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, MoreThan, Repository } from 'typeorm';
+import { In, MoreThan, Not, Repository } from 'typeorm';
 import { Recipe } from './entities/recipe.entity';
 import { Favorite } from './entities/favorite.entity';
 import { Ingredient } from './entities/ingredient.entity';
@@ -157,7 +157,7 @@ export class RecipesService implements OnModuleInit {
           .where('rating.recipeId = recipe.id')
           .andWhere('rating.parentId IS NULL')
           .andWhere('rating.rating IS NOT NULL')
-          .andWhere('rating.moderationStatus = :reviewedStatus'),
+          .andWhere('rating.moderationStatus != :removedRatingStatus'),
       'averageRating',
     )
       .addSelect(
@@ -168,7 +168,7 @@ export class RecipesService implements OnModuleInit {
             .where('rating.recipeId = recipe.id')
             .andWhere('rating.parentId IS NULL')
             .andWhere('rating.rating IS NOT NULL')
-            .andWhere('rating.moderationStatus = :reviewedStatus'),
+            .andWhere('rating.moderationStatus != :removedRatingStatus'),
         'reviewCount',
       )
       .addSelect(
@@ -187,7 +187,7 @@ export class RecipesService implements OnModuleInit {
             .where('recipeView.recipeId = recipe.id'),
         'viewCount',
       )
-      .setParameter('reviewedStatus', 'reviewed');
+      .setParameter('removedRatingStatus', 'removed');
 
     if (currentUserId) {
       qb.addSelect(
@@ -822,7 +822,10 @@ export class RecipesService implements OnModuleInit {
         const commentsCount = await this.recipeRepo.manager
           .getRepository(RecipeRating)
           .count({
-            where: { recipeId: recipe.id, moderationStatus: 'reviewed' },
+            where: {
+              recipeId: recipe.id,
+              moderationStatus: Not('removed'),
+            },
           });
         const hasEditHistory = await this.editHistoryRepo.count({
           where: { recipeId: recipe.id },

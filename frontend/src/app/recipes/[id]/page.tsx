@@ -172,11 +172,17 @@ export default function RecipeDetailPage() {
     }
     setSubmittingRating(true);
     try {
-      await recipesAPI.createRating(recipe.id, {
+      const response = await recipesAPI.createRating(recipe.id, {
         rating: userRating,
         review: userReview,
       });
-      toast.success('Đã gửi đánh giá thành công!');
+      if (response.data.isFlagged) {
+        toast(
+          'Nội dung đánh giá có từ ngữ không phù hợp và đã được gửi đến quản trị viên xem xét.',
+        );
+      } else {
+        toast.success('Gửi đánh giá thành công.');
+      }
       setUserReview('');
       setUserRating(5);
       await Promise.all([loadRecipeDetails(), loadRatings()]);
@@ -191,16 +197,22 @@ export default function RecipeDetailPage() {
   const startEditing = (r: any) => {
     setEditingRatingId(r.id);
     setEditingScore(r.rating);
-    setEditingText(r.review);
+    setEditingText(r.isFlagged ? '' : r.review);
   };
 
   const handleUpdateRating = async (ratingId: string) => {
     try {
-      await recipesAPI.updateRating(recipe.id, ratingId, {
+      const response = await recipesAPI.updateRating(recipe.id, ratingId, {
         rating: editingScore,
         review: editingText,
       });
-      toast.success('Đã cập nhật đánh giá thành công!');
+      if (response.data.isFlagged) {
+        toast(
+          'Nội dung đánh giá có từ ngữ không phù hợp và đã được gửi đến quản trị viên xem xét.',
+        );
+      } else {
+        toast.success('Đã cập nhật đánh giá thành công!');
+      }
       setEditingRatingId(null);
       await Promise.all([loadRecipeDetails(), loadRatings()]);
     } catch (err: any) {
@@ -301,8 +313,14 @@ export default function RecipeDetailPage() {
     }
     setSubmittingReply(true);
     try {
-      await recipesAPI.createReply(recipe.id, parentId, { review: replyText });
-      toast.success('Đã gửi phản hồi thành công!');
+      const response = await recipesAPI.createReply(recipe.id, parentId, { review: replyText });
+      if (response.data.isFlagged) {
+        toast(
+          'Nội dung phản hồi có từ ngữ không phù hợp và đã được gửi đến quản trị viên xem xét.',
+        );
+      } else {
+        toast.success('Đã gửi phản hồi thành công!');
+      }
       setReplyText('');
       setReplyingRatingId(null);
       await loadRatings();
@@ -715,9 +733,9 @@ export default function RecipeDetailPage() {
                           <span className="text-xs text-slate-400 font-medium">
                             {new Date(r.createdAt).toLocaleDateString('vi-VN')}
                           </span>
-                          {r.moderationStatus === 'pending' && (
-                            <span className="px-1.5 py-0.5 rounded-brand-sm text-[9px] bg-brand-warning/10 text-brand-warning font-bold border border-brand-warning/20 animate-pulse">
-                              Đang chờ duyệt
+                          {r.isFlagged && (
+                            <span className="px-1.5 py-0.5 rounded-brand-sm text-[9px] bg-amber-50 text-amber-700 font-bold border border-amber-200">
+                              Nội dung đã được che
                             </span>
                           )}
                         </div>

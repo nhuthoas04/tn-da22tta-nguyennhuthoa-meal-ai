@@ -32,18 +32,18 @@ export class RecipeRating {
   review: string;
 
   @Column({ type: 'text', nullable: true })
-  originalReview: string;
+  originalReview: string | null;
 
   @Column({ type: 'boolean', default: false })
   isFlagged: boolean;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
-  flaggedWords: string;
+  flaggedWords: string | null;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
-  flaggedReason: string;
+  flaggedReason: string | null;
 
-  @Column({ type: 'varchar', length: 50, default: 'reviewed' })
+  @Column({ type: 'varchar', length: 50, default: 'approved' })
   moderationStatus: string;
 
   @CreateDateColumn()
