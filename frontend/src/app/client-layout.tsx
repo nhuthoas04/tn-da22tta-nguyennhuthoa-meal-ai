@@ -4,6 +4,7 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { Toaster } from 'react-hot-toast';
 import ChatWidget from '@/components/ChatWidget';
+import { healthAPI } from '@/lib/api';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
@@ -48,6 +49,18 @@ function AppContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isLandingPage = pathname === '/';
   const { user } = useAuth();
+
+  useEffect(() => {
+    const warmupKey = 'mealai-backend-warmed-at';
+    const lastWarmup = Number(sessionStorage.getItem(warmupKey) || 0);
+
+    if (Date.now() - lastWarmup < 10 * 60 * 1000) return;
+
+    void healthAPI
+      .wake()
+      .then(() => sessionStorage.setItem(warmupKey, String(Date.now())))
+      .catch(() => sessionStorage.removeItem(warmupKey));
+  }, []);
 
   return (
     <div className="flex flex-col min-h-screen" suppressHydrationWarning>

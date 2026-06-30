@@ -60,12 +60,21 @@ api.interceptors.response.use(
 
 export default api;
 
+// ==================== HEALTH API ====================
+export const healthAPI = {
+    wake: () =>
+        api.get('/health', {
+            timeout: 70000,
+            headers: { 'Cache-Control': 'no-cache' },
+        }),
+};
+
 // ==================== AUTH API ====================
 export const authAPI = {
     register: (data: { email: string; password: string; fullName: string }) =>
         api.post('/auth/register', data),
     login: (data: { email: string; password: string }) =>
-        api.post('/auth/login', data),
+        api.post('/auth/login', data, { timeout: 70000 }),
     getProfile: () => api.get('/auth/profile'),
     updateProfile: (data: any) => api.put('/auth/profile', data),
     getProfileStats: () => api.get('/auth/profile/stats'),

@@ -12,6 +12,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [takingLong, setTakingLong] = useState(false);
   const [loginError, setLoginError] = useState('');
 
   useEffect(() => {
@@ -23,7 +24,10 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setTakingLong(false);
     setLoginError('');
+    const slowTimer = window.setTimeout(() => setTakingLong(true), 3000);
+
     try {
       await login(email, password);
       toast.success('Đăng nhập thành công!');
@@ -31,21 +35,25 @@ export default function LoginPage() {
     } catch (err: any) {
       let message = '';
       const status = err.response?.status;
-      if (err.code === 'ERR_NETWORK' || !err.response) {
-        message = 'Không kết nối được backend. Vui lòng kiểm tra backend đang chạy ở http://localhost:3001.';
+      if (err.code === 'ECONNABORTED') {
+        message = 'Máy chủ phản hồi quá lâu. Vui lòng chờ một phút rồi thử lại.';
+      } else if (err.code === 'ERR_NETWORK' || !err.response) {
+        message = 'Không thể kết nối máy chủ. Vui lòng thử lại sau.';
       } else if (status === 401) {
         message = 'Email hoặc mật khẩu không đúng.';
       } else if (status === 404) {
-        message = 'Sai endpoint API đăng nhập. Kiểm tra cấu hình NEXT_PUBLIC_API_URL hoặc AuthController.';
+        message = 'Không tìm thấy API đăng nhập. Vui lòng kiểm tra cấu hình hệ thống.';
       } else if (status >= 500) {
-        message = 'Lỗi máy chủ. Vui lòng kiểm tra backend hoặc PostgreSQL.';
+        message = 'Máy chủ đang gặp sự cố. Vui lòng thử lại sau.';
       } else {
         message = err.response?.data?.message || 'Email hoặc mật khẩu không đúng.';
       }
       setLoginError(message);
       toast.error(message);
     } finally {
+      window.clearTimeout(slowTimer);
       setLoading(false);
+      setTakingLong(false);
     }
   };
 
@@ -95,7 +103,7 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full py-3 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 transition disabled:opacity-50"
           >
-            {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
+            {takingLong ? 'Máy chủ đang khởi động...' : loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
           </button>
 
           {loginError && (
