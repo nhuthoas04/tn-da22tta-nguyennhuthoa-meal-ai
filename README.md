@@ -175,13 +175,9 @@ JWT_REFRESH_EXPIRES_IN=7d
 # Google Gemini
 GEMINI_API_KEY=your_gemini_api_key
 
-# Email khôi phục mật khẩu
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_SECURE=false
-SMTP_USER=your_email@gmail.com
-SMTP_PASS=your_gmail_app_password
-SMTP_FROM=MealAI <your_email@gmail.com>
+# Email qua Resend HTTP API
+RESEND_API_KEY=re_xxxxxxxxx
+EMAIL_FROM=MealAI <onboarding@resend.dev>
 EMAIL_DEBUG=false
 
 # Frontend và CORS
@@ -191,7 +187,7 @@ CORS_ORIGIN=http://localhost:3000
 
 Lưu ý:
 
-- Không commit `.env`, API key, mật khẩu database hoặc Gmail App Password lên GitHub.
+- Không commit `.env`, API key hoặc mật khẩu database lên GitHub.
 - `DB_SYNC=true` giúp tạo/cập nhật bảng khi phát triển. Cần sao lưu dữ liệu trước khi thay đổi schema trên môi trường production.
 - Khi database còn trống, `SeedService` tự tạo dữ liệu nguyên liệu và công thức mẫu ở lần khởi động đầu tiên.
 
@@ -280,7 +276,7 @@ npm run start
 2. Chọn **Blueprint** và trỏ đến file `render.yaml`.
 3. Nhập các biến bí mật được đánh dấu `sync: false`, đặc biệt:
    - `GEMINI_API_KEY`
-   - `MAIL_HOST`, `MAIL_USER`, `MAIL_PASS`, `MAIL_FROM`
+   - `RESEND_API_KEY`
 4. Sau khi backend hoạt động, kiểm tra `/api/v1/health`.
 
 ### Frontend trên Vercel
@@ -314,11 +310,12 @@ NEXT_PUBLIC_API_URL=https://<backend-render-domain>/api/v1
 
 ### Không nhận được email đặt lại mật khẩu
 
-- Gmail phải sử dụng App Password, không dùng mật khẩu đăng nhập thông thường.
-- Kiểm tra `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER` và `SMTP_PASS`.
-- Một số gói Render miễn phí có thể chặn SMTP cổng `25/465/587`. Nếu
-  production báo `Connection timeout`, nên chuyển sang nhà cung cấp email có
-  HTTP API như Brevo, Resend hoặc SendGrid.
+- Kiểm tra `RESEND_API_KEY` và `EMAIL_FROM`.
+- `onboarding@resend.dev` phù hợp để kiểm thử và có thể chỉ gửi tới email của
+  tài khoản Resend. Muốn gửi cho người dùng thật, cần xác minh domain trong
+  Resend rồi cập nhật `EMAIL_FROM`.
+- Backend dùng Resend HTTP API nên không phụ thuộc các cổng SMTP bị chặn trên
+  Render Free.
 - Chỉ bật `EMAIL_DEBUG=true` khi kiểm thử. Liên kết đặt lại mật khẩu sẽ xuất
   hiện trong log backend.
 

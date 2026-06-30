@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 
 export interface EmailSendResult {
   success: boolean;
@@ -20,20 +20,14 @@ export class EmailService {
     subject: string,
     html: string,
   ): Promise<EmailSendResult> {
-    const host = this.configService.get<string>('SMTP_HOST') || this.configService.get<string>('MAIL_HOST');
-    const port = Number(this.configService.get<any>('SMTP_PORT') || this.configService.get<any>('MAIL_PORT') || 587);
-    const smtpSecure = this.configService.get<string>('SMTP_SECURE');
-    const secure = smtpSecure !== undefined ? smtpSecure === 'true' : port === 465;
-    const userMail = this.configService.get<string>('SMTP_USER') || this.configService.get<string>('MAIL_USER');
-    const passMail = this.configService.get<string>('SMTP_PASS') || this.configService.get<string>('MAIL_PASS');
+    const apiKey = this.configService.get<string>('RESEND_API_KEY');
     const fromMail =
-      this.configService.get<string>('SMTP_FROM') ||
-      this.configService.get<string>('MAIL_FROM') ||
-      (userMail ? `MealAI <${userMail}>` : 'MealAI <no-reply@recipe-ai.com>');
+      this.configService.get<string>('EMAIL_FROM') ||
+      'MealAI <onboarding@resend.dev>';
 
-    if (!host || !userMail || !passMail) {
+    if (!apiKey) {
       const safeHtml = html.replace(/([?&]token=)[^"'&<\s]+/gi, '$1[hidden]');
-      this.logger.warn(`MAIL CONFIG IS MISSING. FALLBACK TO CONSOLE LOG.`);
+      this.logger.warn('RESEND_API_KEY is missing. Email was not delivered.');
       this.logger.log(
         `\n======================================================`,
       );
@@ -47,39 +41,32 @@ export class EmailService {
       return { success: false, code: 'EMAIL_CONFIG_MISSING' };
     }
 
-    // Some free hosting tiers block outbound SMTP. This adapter is kept
-    // isolated so production can move to an HTTP email provider if needed.
-    const transporter = nodemailer.createTransport({
-      host,
-      port,
-      secure,
-      auth: {
-        user: userMail,
-        pass: passMail,
-      },
-      connectionTimeout: this.sendTimeoutMs,
-      greetingTimeout: this.sendTimeoutMs,
-      socketTimeout: this.sendTimeoutMs,
-    });
+    const resend = new Resend(apiKey);
 
     try {
-      await this.withTimeout(
-        transporter.sendMail({
+      const { data, error } = await this.withTimeout(
+        resend.emails.send({
           from: fromMail,
-          to,
+          to: [to],
           subject,
           html,
         }),
         this.sendTimeoutMs,
       );
-      this.logger.log(`Email sent successfully to ${to}`);
+
+      if (error) {
+        const resendError = new Error(error.message);
+        (resendError as Error & { code?: string }).code =
+          error.name || 'RESEND_API_ERROR';
+        throw resendError;
+      }
+
+      this.logger.log(`Email sent successfully (${data?.id || 'accepted'})`);
       return { success: true };
     } catch (err: any) {
       const code = this.getErrorCode(err);
       this.logger.error(`Email delivery failed (${code})`);
       return { success: false, code };
-    } finally {
-      transporter.close();
     }
   }
 
@@ -95,7 +82,7 @@ export class EmailService {
       this.logger.debug(`Password reset link for ${email}: ${resetLink}`);
     }
 
-    const subject = 'MealAI - Đặt lại mật khẩu';
+    const subject = 'Đặt lại mật khẩu MealAI';
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px;">
         <h2 style="color: #10b981; text-align: center;">MealAI</h2>
@@ -142,8 +129,8 @@ export class EmailService {
   }
 
   private getErrorCode(error: any): string {
-    const code = String(error?.code || '').toUpperCase();
-    if (['ECONNECTION', 'ETIMEDOUT', 'EAUTH'].includes(code)) {
+    const code = String(error?.code || error?.name || '').toUpperCase();
+    if (['ETIMEDOUT', 'VALIDATION_ERROR', 'MISSING_REQUIRED_FIELD'].includes(code)) {
       return code;
     }
     if (/timeout/i.test(String(error?.message || ''))) {

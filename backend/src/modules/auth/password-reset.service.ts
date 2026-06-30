@@ -73,7 +73,8 @@ export class PasswordResetService {
 
     return {
       success: true,
-      message: 'Nếu email tồn tại trong hệ thống, liên kết đặt lại mật khẩu đã được gửi.',
+      message:
+        'Nếu email tồn tại, hệ thống đã gửi liên kết đặt lại mật khẩu. Vui lòng kiểm tra Gmail.',
     };
   }
 

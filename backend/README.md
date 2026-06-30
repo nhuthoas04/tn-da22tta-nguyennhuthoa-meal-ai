@@ -7,7 +7,7 @@
 ## 🛠️ Tính Năng Backend
 
 1. **Authentication & Authorization (JWT):** Đăng ký, đăng nhập bảo mật với mật khẩu băm (bcryptjs), quản lý phiên đăng nhập qua Access Token và Refresh Token, phân quyền người dùng (`user`, `admin`).
-2. **Password Reset Flow (Nodemailer & SMTP):** Sinh token khôi phục mật khẩu bảo mật (băm SHA-256 lưu DB), gửi link đặt lại mật khẩu qua email người dùng sử dụng dịch vụ SMTP (Gmail).
+2. **Password Reset Flow (Resend HTTP API):** Sinh token khôi phục mật khẩu bảo mật (băm SHA-256 lưu DB) và gửi liên kết đặt lại mật khẩu qua Resend.
 3. **Recommendation Engine (Hybrid Scoring):**
    - Bộ lọc Rule-Based loại bỏ món không phù hợp (dị ứng, chế độ ăn chay/keto, bệnh lý).
    - Bộ chấm điểm Scoring-Based tính toán Calo, nguyên liệu tủ lạnh, nguyên liệu sắp hết hạn, sở thích người dùng và thời gian nấu.
@@ -26,7 +26,7 @@ Mã nguồn được tổ chức theo module khép kín:
 *   `inventory`: Quản lý nguyên liệu hiện có trong tủ lạnh gia đình.
 *   `meal-plan`: Quản lý thực đơn theo ngày và theo tuần.
 *   `shopping-list`: Quản lý danh sách mua sắm tự động khấu trừ từ tủ lạnh.
-*   `notification`: Hệ thống thông báo và dịch vụ email SMTP (EmailService).
+*   `notification`: Hệ thống thông báo và dịch vụ email Resend HTTP API (EmailService).
 *   `recommendations`: Recommendation Engine xử lý nghiệp vụ chấm điểm gợi ý món ăn.
 *   `chatbot`: Tiếp nhận và phân tích ngữ nghĩa tin nhắn người dùng thông qua Gemini API.
 
@@ -54,11 +54,8 @@ JWT_REFRESH_SECRET=your_refresh_secret
 
 GEMINI_API_KEY=your_gemini_api_key
 
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_SECURE=false
-SMTP_USER=your_email@gmail.com
-SMTP_PASS=your_gmail_app_password
+RESEND_API_KEY=re_xxxxxxxxx
+EMAIL_FROM=MealAI <onboarding@resend.dev>
 
 FRONTEND_URL=http://localhost:3000
 ```

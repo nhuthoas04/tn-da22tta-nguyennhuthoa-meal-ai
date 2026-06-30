@@ -85,7 +85,7 @@ export default function ForgotPasswordPage() {
               </div>
               <h2 className="text-xl font-bold text-gray-900">Kiểm tra hộp thư của bạn</h2>
               <p className="text-sm text-gray-600 leading-relaxed px-2">
-                Nếu email <strong>{email}</strong> tồn tại trong hệ thống, liên kết đặt lại mật khẩu đã được gửi. Vui lòng kiểm tra và nhấp vào liên kết để tạo mật khẩu mới.
+                Nếu email <strong>{email}</strong> tồn tại, hệ thống đã gửi liên kết đặt lại mật khẩu. Vui lòng kiểm tra Gmail.
               </p>
               <div className="pt-4">
                 <Link

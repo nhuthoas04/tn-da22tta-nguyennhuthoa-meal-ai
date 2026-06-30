@@ -29,9 +29,9 @@ services:
       - key: DB_SYNC
         value: true
       - key: FRONTEND_URL
-        value: https://tn-da22tta-nguyennhuthoa-meal-ai.vercel.app
+        value: https://mealai-two.vercel.app
       - key: CORS_ORIGIN
-        value: https://tn-da22tta-nguyennhuthoa-meal-ai.vercel.app,https://tn-da22tta-nguyennhuthoa-meal-ai-frontend.onrender.com
+        value: https://mealai-two.vercel.app,https://tn-da22tta-nguyennhuthoa-meal-ai.vercel.app,https://tn-da22tta-nguyennhuthoa-meal-ai-frontend.onrender.com
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_REFRESH_SECRET
@@ -42,16 +42,10 @@ services:
         value: 7d
       - key: GEMINI_API_KEY
         sync: false
-      - key: MAIL_HOST
+      - key: RESEND_API_KEY
         sync: false
-      - key: MAIL_PORT
-        value: 587
-      - key: MAIL_USER
-        sync: false
-      - key: MAIL_PASS
-        sync: false
-      - key: MAIL_FROM
-        sync: false
+      - key: EMAIL_FROM
+        value: MealAI <onboarding@resend.dev>
       - key: AZURE_SPEECH_KEY
         sync: false
       - key: AZURE_SPEECH_REGION
