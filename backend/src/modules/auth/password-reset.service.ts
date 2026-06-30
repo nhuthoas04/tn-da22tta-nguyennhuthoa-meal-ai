@@ -49,10 +49,14 @@ export class PasswordResetService {
 
       // In non-production environments, log link to console for easier testing
       if (this.configService.get<string>('NODE_ENV') !== 'production') {
+        const safeResetLink = resetLink.replace(
+          /([?&]token=)[^&]+/i,
+          '$1[hidden]',
+        );
         console.log(`\n======================================================`);
         console.log(`[PASSWORD RESET DEV LINK]`);
         console.log(`Email: ${dto.email}`);
-        console.log(`Link: ${resetLink}`);
+        console.log(`Link: ${safeResetLink}`);
         console.log(`======================================================\n`);
       }
 

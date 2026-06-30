@@ -50,6 +50,12 @@ export class User {
   @Column({ type: 'int', nullable: true })
   dailyCalorieTarget: number; // Cached TDEE
 
+  @Column({ type: 'boolean', default: false })
+  emailVerified: boolean;
+
+  @Column({ type: 'timestamp', nullable: true })
+  emailVerifiedAt: Date;
+
   @Column({ type: 'int', default: 0 })
   violationCount: number;
 

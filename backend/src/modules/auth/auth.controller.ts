@@ -8,6 +8,7 @@ import {
   UseGuards,
   Request,
   Param,
+  Query,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { AuthService } from './auth.service';
@@ -18,6 +19,8 @@ import {
   RefreshTokenDto,
   ForgotPasswordDto,
   ResetPasswordDto,
+  VerifyEmailDto,
+  ResendVerificationEmailDto,
 } from './dto/auth.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -38,6 +41,21 @@ export class AuthController {
   @Post('reset-password')
   resetPassword(@Body() dto: ResetPasswordDto) {
     return this.passwordResetService.resetPassword(dto);
+  }
+
+  @Get('verify-email')
+  verifyEmailByQuery(@Query('token') token: string) {
+    return this.authService.verifyEmail({ token });
+  }
+
+  @Post('verify-email')
+  verifyEmail(@Body() dto: VerifyEmailDto) {
+    return this.authService.verifyEmail(dto);
+  }
+
+  @Post('resend-verification-email')
+  resendVerificationEmail(@Body() dto: ResendVerificationEmailDto) {
+    return this.authService.resendVerificationEmail(dto);
   }
 
   @Post('register')

@@ -13,6 +13,7 @@ const publicPaths = [
   '/register',
   '/forgot-password',
   '/reset-password',
+  '/verify-email',
   '/privacy-policy',
   '/terms-of-service',
 ];

@@ -44,3 +44,14 @@ export class ResetPasswordDto {
   @IsNotEmpty()
   confirmPassword: string;
 }
+
+export class VerifyEmailDto {
+  @IsString()
+  @IsNotEmpty()
+  token: string;
+}
+
+export class ResendVerificationEmailDto {
+  @IsEmail()
+  email: string;
+}

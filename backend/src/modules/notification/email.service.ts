@@ -15,9 +15,13 @@ export class EmailService {
     const secure = smtpSecure !== undefined ? smtpSecure === 'true' : port === 465;
     const userMail = this.configService.get<string>('SMTP_USER') || this.configService.get<string>('MAIL_USER');
     const passMail = this.configService.get<string>('SMTP_PASS') || this.configService.get<string>('MAIL_PASS');
-    const fromMail = this.configService.get<string>('SMTP_USER') || this.configService.get<string>('MAIL_FROM') || 'no-reply@recipe-ai.com';
+    const fromMail =
+      this.configService.get<string>('SMTP_FROM') ||
+      this.configService.get<string>('MAIL_FROM') ||
+      (userMail ? `MealAI <${userMail}>` : 'MealAI <no-reply@recipe-ai.com>');
 
     if (!host || !userMail || !passMail) {
+      const safeHtml = html.replace(/([?&]token=)[^"'&<\s]+/gi, '$1[hidden]');
       this.logger.warn(`MAIL CONFIG IS MISSING. FALLBACK TO CONSOLE LOG.`);
       this.logger.log(
         `\n======================================================`,
@@ -25,7 +29,7 @@ export class EmailService {
       this.logger.log(`[EMAIL FALLBACK]`);
       this.logger.log(`To: ${to}`);
       this.logger.log(`Subject: ${subject}`);
-      this.logger.log(`Content:\n${html}`);
+      this.logger.log(`Content:\n${safeHtml}`);
       this.logger.log(
         `======================================================\n`,
       );
@@ -36,7 +40,7 @@ export class EmailService {
       const transporter = nodemailer.createTransport({
         host,
         port,
-        secure: port === 465,
+        secure,
         auth: {
           user: userMail,
           pass: passMail,
@@ -44,7 +48,7 @@ export class EmailService {
       });
 
       await transporter.sendMail({
-        from: `"AI Meal Planner" <${fromMail}>`,
+        from: fromMail,
         to,
         subject,
         html,

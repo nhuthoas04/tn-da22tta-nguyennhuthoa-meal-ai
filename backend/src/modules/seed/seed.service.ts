@@ -48,6 +48,11 @@ export class SeedService implements OnModuleInit {
         await this.userRepo.save(existing);
         console.log('🔑 Updated admin@mealai.vn role to admin');
       }
+      if (!existing.emailVerified) {
+        existing.emailVerified = true;
+        existing.emailVerifiedAt = existing.emailVerifiedAt || new Date();
+        await this.userRepo.save(existing);
+      }
       return;
     }
 
@@ -57,6 +62,8 @@ export class SeedService implements OnModuleInit {
       passwordHash,
       fullName: 'Admin',
       role: 'admin',
+      emailVerified: true,
+      emailVerifiedAt: new Date(),
     });
     await this.userRepo.save(admin);
     console.log('👑 Admin account created: admin@mealai.vn / admin123456');
