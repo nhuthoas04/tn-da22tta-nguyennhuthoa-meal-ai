@@ -4,6 +4,7 @@ import {
   ConflictException,
   BadRequestException,
   ForbiddenException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, MoreThan, Repository } from 'typeorm';
@@ -67,7 +68,7 @@ export class AuthService {
     const prefs = this.prefRepo.create({ userId: user.id, servings: null });
     await this.prefRepo.save(prefs);
 
-    await this.createAndSendVerificationEmail(user);
+    const emailResult = await this.createAndSendVerificationEmail(user);
 
     return {
       id: user.id,
@@ -75,8 +76,10 @@ export class AuthService {
       fullName: user.fullName,
       role: user.role,
       emailVerified: user.emailVerified,
-      message:
-        'Đăng ký thành công. Vui lòng kiểm tra email để xác thực tài khoản.',
+      emailSent: emailResult.success,
+      message: emailResult.success
+        ? 'Đăng ký thành công. Vui lòng kiểm tra email để xác thực tài khoản.'
+        : 'Đăng ký thành công nhưng chưa thể gửi email xác thực. Hãy đăng nhập và chọn gửi lại email xác thực.',
     };
   }
 
@@ -193,9 +196,16 @@ export class AuthService {
       }
     }
 
-    await this.createAndSendVerificationEmail(user);
+    const emailResult = await this.createAndSendVerificationEmail(user);
+    if (!emailResult.success) {
+      throw new ServiceUnavailableException({
+        code: emailResult.code || 'EMAIL_SEND_FAILED',
+        message:
+          'Hiện không thể gửi email xác thực. Vui lòng thử lại sau.',
+      });
+    }
 
-    return { message: genericMessage };
+    return { success: true, message: genericMessage };
   }
 
   // ==================== REFRESH TOKEN ====================
@@ -485,7 +495,17 @@ export class AuthService {
       </div>
     `;
 
-    await this.emailService.sendMail(user.email, subject, html);
+    const emailResult = await this.emailService.sendMail(
+      user.email,
+      subject,
+      html,
+    );
+
+    if (!emailResult.success) {
+      await this.emailVerificationTokenRepo.delete(tokenRecord.id);
+    }
+
+    return emailResult;
   }
 
   // ==================== STATISTICS ====================

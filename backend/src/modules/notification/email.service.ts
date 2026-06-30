@@ -6,6 +6,7 @@ export interface EmailSendResult {
   success: boolean;
   code?: string;
   debug?: boolean;
+  detail?: string;
 }
 
 @Injectable()
@@ -65,8 +66,11 @@ export class EmailService {
       return { success: true };
     } catch (err: any) {
       const code = this.getErrorCode(err);
-      this.logger.error(`Email delivery failed (${code})`);
-      return { success: false, code };
+      const detail = String(err?.message || 'Unknown email provider error')
+        .replace(/\s+/g, ' ')
+        .slice(0, 300);
+      this.logger.error(`Email delivery failed (${code}): ${detail}`);
+      return { success: false, code, detail };
     }
   }
 

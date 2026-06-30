@@ -12,14 +12,21 @@ export default function RegisterPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState('');
+  const [verificationEmailSent, setVerificationEmailSent] = useState(true);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
-      await register(email, password, fullName);
+      const result = await register(email, password, fullName);
+      const emailSent = result?.emailSent !== false;
+      setVerificationEmailSent(emailSent);
       setRegisteredEmail(email);
-      toast.success('Đăng ký thành công. Vui lòng kiểm tra email để xác thực tài khoản.');
+      if (emailSent) {
+        toast.success('Đăng ký thành công. Vui lòng kiểm tra email để xác thực tài khoản.');
+      } else {
+        toast.error(result?.message || 'Tài khoản đã được tạo nhưng chưa thể gửi email xác thực.');
+      }
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Đăng ký thất bại. Email có thể đã tồn tại.');
     } finally {
@@ -38,11 +45,16 @@ export default function RegisterPage() {
 
         {registeredEmail ? (
           <div className="bg-white rounded-2xl shadow-sm border border-emerald-100 p-8 text-center">
-            <HiCheckCircle className="text-6xl text-emerald-600 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-gray-900">Kiểm tra email của bạn</h2>
+            <HiCheckCircle className={`text-6xl mx-auto mb-4 ${verificationEmailSent ? 'text-emerald-600' : 'text-amber-500'}`} />
+            <h2 className="text-2xl font-bold text-gray-900">
+              {verificationEmailSent ? 'Kiểm tra email của bạn' : 'Tài khoản đã được tạo'}
+            </h2>
             <p className="mt-3 text-gray-600">
-              MealAI đã gửi link xác thực đến <strong>{registeredEmail}</strong>.
-              Vui lòng mở Gmail và bấm vào link xác thực để kích hoạt tài khoản.
+              {verificationEmailSent ? (
+                <>MealAI đã gửi link xác thực đến <strong>{registeredEmail}</strong>. Vui lòng mở Gmail và bấm vào link xác thực để kích hoạt tài khoản.</>
+              ) : (
+                <>MealAI chưa thể gửi email đến <strong>{registeredEmail}</strong>. Hãy quay lại đăng nhập và chọn gửi lại email xác thực.</>
+              )}
             </p>
             <p className="mt-3 text-sm text-gray-500">
               Link xác thực có hiệu lực trong 24 giờ. Nếu không thấy email, hãy kiểm tra thư rác.
