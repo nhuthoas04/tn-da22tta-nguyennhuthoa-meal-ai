@@ -75,7 +75,8 @@ export const authAPI = {
     adminDeleteUser: (id: string) => api.delete(`/auth/admin/users/${id}`),
     
     // Password Reset
-    forgotPassword: (email: string) => api.post('/auth/forgot-password', { email }),
+    forgotPassword: (email: string) =>
+        api.post('/auth/forgot-password', { email }, { timeout: 12000 }),
     resetPassword: (data: any) => api.post('/auth/reset-password', data),
 
     // Email Verification

@@ -181,6 +181,8 @@ SMTP_PORT=587
 SMTP_SECURE=false
 SMTP_USER=your_email@gmail.com
 SMTP_PASS=your_gmail_app_password
+SMTP_FROM=MealAI <your_email@gmail.com>
+EMAIL_DEBUG=false
 
 # Frontend và CORS
 FRONTEND_URL=http://localhost:3000
@@ -314,6 +316,11 @@ NEXT_PUBLIC_API_URL=https://<backend-render-domain>/api/v1
 
 - Gmail phải sử dụng App Password, không dùng mật khẩu đăng nhập thông thường.
 - Kiểm tra `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER` và `SMTP_PASS`.
+- Một số gói Render miễn phí có thể chặn SMTP cổng `25/465/587`. Nếu
+  production báo `Connection timeout`, nên chuyển sang nhà cung cấp email có
+  HTTP API như Brevo, Resend hoặc SendGrid.
+- Chỉ bật `EMAIL_DEBUG=true` khi kiểm thử. Liên kết đặt lại mật khẩu sẽ xuất
+  hiện trong log backend.
 
 ### Chatbot không gọi Gemini
 

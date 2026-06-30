@@ -1,6 +1,7 @@
 import {
   Injectable,
   BadRequestException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan, IsNull } from 'typeorm';
@@ -47,44 +48,31 @@ export class PasswordResetService {
       const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
       const resetLink = `${frontendUrl}/reset-password?token=${rawToken}`;
 
-      // In non-production environments, log link to console for easier testing
-      if (this.configService.get<string>('NODE_ENV') !== 'production') {
-        const safeResetLink = resetLink.replace(
-          /([?&]token=)[^&]+/i,
-          '$1[hidden]',
-        );
-        console.log(`\n======================================================`);
-        console.log(`[PASSWORD RESET DEV LINK]`);
-        console.log(`Email: ${dto.email}`);
-        console.log(`Link: ${safeResetLink}`);
-        console.log(`======================================================\n`);
+      const emailResult = await this.emailService.sendPasswordResetEmail(
+        dto.email,
+        resetLink,
+      );
+
+      if (!emailResult.success) {
+        throw new ServiceUnavailableException({
+          code: emailResult.code || 'EMAIL_SEND_FAILED',
+          message:
+            'Hiện không thể gửi email đặt lại mật khẩu. Vui lòng thử lại sau.',
+        });
       }
 
-      const mailSubject = 'MealAI - Đặt lại mật khẩu';
-      const mailHtml = `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px;">
-          <h2 style="color: #10b981; text-align: center;">MealAI</h2>
-          <p>Xin chào,</p>
-          <p>Bạn vừa yêu cầu đặt lại mật khẩu cho tài khoản MealAI.</p>
-          <p>Vui lòng bấm vào liên kết bên dưới để đặt lại mật khẩu:</p>
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${resetLink}" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; font-weight: bold; border-radius: 6px; display: inline-block;">
-              Đặt lại mật khẩu
-            </a>
-          </div>
-          <p style="color: #6b7280; font-size: 14px;">Nếu nút ở trên không hoạt động, bạn cũng có thể sao chép liên kết dưới đây vào trình duyệt của mình:</p>
-          <p style="word-break: break-all; color: #10b981;">${resetLink}</p>
-          <p style="color: #ef4444; font-size: 14px; margin-top: 20px;">Liên kết này sẽ hết hạn sau 30 phút.</p>
-          <p>Nếu bạn không yêu cầu thao tác này, vui lòng bỏ qua email này.</p>
-          <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 20px 0;" />
-          <p style="font-size: 12px; color: #6b7280; text-align: center;">Đây là email tự động từ hệ thống MealAI. Vui lòng không phản hồi lại email này.</p>
-        </div>
-      `;
-
-      await this.emailService.sendMail(dto.email, mailSubject, mailHtml);
+      if (emailResult.debug) {
+        return {
+          success: true,
+          debug: true,
+          message:
+            'Đã tạo liên kết đặt lại mật khẩu ở chế độ demo. Kiểm tra log backend.',
+        };
+      }
     }
 
     return {
+      success: true,
       message: 'Nếu email tồn tại trong hệ thống, liên kết đặt lại mật khẩu đã được gửi.',
     };
   }
