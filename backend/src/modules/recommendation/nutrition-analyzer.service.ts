@@ -4,6 +4,11 @@ import { Repository } from 'typeorm';
 import { WeeklyNutritionAnalysis } from './entities/weekly-nutrition-analysis.entity';
 import { MealPlan } from '../meal-plan/entities/meal-plan.entity';
 import { User } from '../auth/entities/user.entity';
+import { CalorieService } from './calorie.service';
+import {
+  HEALTH_CONDITIONS,
+  parseHealthConditions,
+} from './health-goal.constants';
 
 type NutritionAnalysisResponse = Omit<
   WeeklyNutritionAnalysis,
@@ -13,6 +18,8 @@ type NutritionAnalysisResponse = Omit<
   dataDays: number;
   incompleteNutritionCount: number;
   targetCalories: number | null;
+  tdeeCalories: number | null;
+  calorieGoal: 'weight_loss' | 'muscle_gain' | 'maintenance';
 };
 
 @Injectable()
@@ -26,6 +33,7 @@ export class NutritionAnalyzerService {
     private readonly mealPlanRepo: Repository<MealPlan>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
+    private readonly calorieService: CalorieService,
   ) {}
 
   async analyzeWeeklyPlan(
@@ -57,7 +65,16 @@ export class NutritionAnalyzerService {
       items.map((item) => this.formatDateInput(new Date(item.mealDate))),
     );
     const dataDays = activeDates.size;
-    const targetCalories = this.toPositiveNumber(user.dailyCalorieTarget);
+    const calorieTargets = this.calorieService.getUserCalorieTargets(user);
+    const targetCalories = this.toPositiveNumber(
+      calorieTargets.adjustedDailyTarget,
+    );
+    const healthConditions = parseHealthConditions(
+      user.preferences?.healthConditions,
+    );
+    const isWeightLoss = healthConditions.includes(
+      HEALTH_CONDITIONS.WEIGHT_LOSS,
+    );
 
     let totalCalories = 0;
     let totalProtein = 0;
@@ -160,7 +177,9 @@ export class NutritionAnalyzerService {
       );
     } else if (calorieRatio !== null && calorieRatio > 1.15) {
       weaknesses.push(
-        `Calories trung bình vượt mục tiêu (${averageCalories.toLocaleString('vi-VN')}/${targetCalories.toLocaleString('vi-VN')} kcal/ngày).`,
+        isWeightLoss
+          ? `Thực đơn đang vượt mục tiêu năng lượng cho chế độ giảm cân (${averageCalories.toLocaleString('vi-VN')}/${targetCalories.toLocaleString('vi-VN')} kcal/ngày).`
+          : `Calories trung bình vượt mục tiêu (${averageCalories.toLocaleString('vi-VN')}/${targetCalories.toLocaleString('vi-VN')} kcal/ngày).`,
       );
     }
     if (fatPercent > 35 && macroCalories > 0) {
@@ -194,7 +213,14 @@ export class NutritionAnalyzerService {
     }
     if (fatPercent > 35 || friedCount > 3) {
       recommendations.push(
-        'Có thể giảm món chiên xào nhiều dầu và ưu tiên món hấp, luộc hoặc nướng.',
+        isWeightLoss
+          ? 'Mục tiêu giảm cân đang có nhiều món giàu năng lượng hoặc chiên xào; nên đổi sang món hấp, luộc, canh hoặc rau.'
+          : 'Có thể giảm món chiên xào nhiều dầu và ưu tiên món hấp, luộc hoặc nướng.',
+      );
+    }
+    if (isWeightLoss && proteinPercent > 0 && proteinPercent < 15) {
+      recommendations.push(
+        'Nên bổ sung món giàu protein nhưng ít béo như cá, thịt nạc hoặc đậu hũ.',
       );
     }
 
@@ -229,6 +255,8 @@ export class NutritionAnalyzerService {
       dataDays,
       incompleteNutritionCount,
       targetCalories,
+      tdeeCalories: calorieTargets.tdee,
+      calorieGoal: calorieTargets.goal,
     };
   }
 

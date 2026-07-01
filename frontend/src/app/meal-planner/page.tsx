@@ -153,6 +153,14 @@ export default function MealPlannerPage() {
   };
 
   const getUserDailyCalories = () => {
+    const calories = Number(
+      (user as any)?.adjustedDailyCalorieTarget ||
+      (user as any)?.dailyCalorieTarget,
+    );
+    return Number.isFinite(calories) && calories > 0 ? calories : 0;
+  };
+
+  const getUserTdee = () => {
     const calories = Number((user as any)?.dailyCalorieTarget);
     return Number.isFinite(calories) && calories > 0 ? calories : 0;
   };
@@ -281,6 +289,19 @@ export default function MealPlannerPage() {
       toast.error('Các bữa còn lại đã đủ món theo số người ăn, AI không thêm món nữa.');
       return;
     }
+    const exceededMeals = editableMealTypes.filter((mealType) => {
+      const target = getMealTargetCalories(getUserDailyCalories(), mealType);
+      const current = getMealCalories(
+        dayItems.filter((item: any) => item.mealType === mealType),
+      );
+      return target !== null && current >= target;
+    });
+    if (exceededMeals.length > 0) {
+      toast(
+        'Bữa này đã vượt mục tiêu kcal, AI sẽ ưu tiên món nhẹ hơn hoặc món thay thế phù hợp.',
+        { duration: 5000 },
+      );
+    }
 
     setAiSuggestingDay(dayOfWeek);
     setAiSuggestionError(null);
@@ -305,6 +326,9 @@ export default function MealPlannerPage() {
         useAntiWaste: true,
         overwrite,
         options: aiOptions,
+        healthConditions: (user as any)?.preferences?.healthConditions || '',
+        tdee: getUserTdee(),
+        adjustedDailyCalorieTarget: getUserDailyCalories(),
         excludeRecipeIds,
         recentSuggestedRecipeIds,
         forceRefresh: true,
@@ -933,6 +957,20 @@ export default function MealPlannerPage() {
               </span>
             </label>
           </div>
+          {getUserTdee() > 0 && getUserDailyCalories() !== getUserTdee() && (
+            <div className="flex flex-wrap gap-x-5 gap-y-1 border-t border-brand-primary/10 pt-3 text-xs text-slate-600">
+              <span>
+                TDEE gốc:{' '}
+                <strong>{formatNumber(getUserTdee())} kcal</strong>
+              </span>
+              <span>
+                Mục tiêu sức khỏe:{' '}
+                <strong className="text-brand-primary">
+                  {formatNumber(getUserDailyCalories())} kcal/ngày
+                </strong>
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Loading */}
@@ -1599,14 +1637,14 @@ function getCalorieStatusBadge(current: number, target: number, hasItems: boolea
   if (!target || target <= 0 || !hasItems) return null;
   const ratio = current / target;
 
-  if (ratio < 0.8) {
+  if (ratio < 0.75) {
     return (
       <span className="rounded-full bg-red-50 border border-red-200 px-1.5 py-0.5 text-[9px] font-bold text-red-600 normal-case tracking-normal">
         Thiếu kcal
       </span>
     );
   }
-  if (ratio >= 0.8 && ratio < 0.9) {
+  if (ratio >= 0.75 && ratio < 0.9) {
     return (
       <span className="rounded-full bg-amber-50 border border-amber-200 px-1.5 py-0.5 text-[9px] font-bold text-amber-600 normal-case tracking-normal">
         Thiếu nhẹ

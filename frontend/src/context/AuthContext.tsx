@@ -8,6 +8,14 @@ interface User {
   fullName: string;
   role: string; // 'user' | 'admin'
   dailyCalorieTarget?: number;
+  adjustedDailyCalorieTarget?: number;
+  calorieGoal?: 'weight_loss' | 'muscle_gain' | 'maintenance';
+  preferences?: {
+    healthConditions?: string;
+    servings?: number;
+    minProteinPerMeal?: number;
+    [key: string]: unknown;
+  };
 }
 
 interface AuthContextType {

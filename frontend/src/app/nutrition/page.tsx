@@ -61,6 +61,8 @@ type NutritionData = {
     fat?: number;
   };
   calorieTarget: number;
+  tdeeCalories?: number;
+  calorieGoal?: 'weight_loss' | 'muscle_gain' | 'maintenance';
   totalDishes: number;
   dataDays?: number;
   incompleteNutritionCount?: number;
@@ -334,7 +336,14 @@ export default function NutritionPage() {
   }
 
   /* ---- Compute targets & insights ---- */
-  const calorieTarget = Number(nutrition?.calorieTarget || (user as any).dailyCalorieTarget) || 0;
+  const calorieTarget = Number(
+    nutrition?.calorieTarget ||
+    (user as any).adjustedDailyCalorieTarget ||
+    (user as any).dailyCalorieTarget,
+  ) || 0;
+  const tdeeTarget = Number(
+    nutrition?.tdeeCalories || (user as any).dailyCalorieTarget,
+  ) || 0;
   const targets = computeMacroTargets(calorieTarget, (user as any)?.preferences?.minProteinPerMeal);
   const trendInsights = nutrition
     ? buildTrendInsights(nutrition.daily, calorieTarget)
@@ -346,6 +355,15 @@ export default function NutritionPage() {
       {/* SECTION 1 — Header */}
       <PageHeader />
       <NutritionInnerTabs activeTab={activeTab} onChange={setActiveTab} />
+      {tdeeTarget > 0 && calorieTarget !== tdeeTarget && (
+        <div className="flex flex-wrap gap-x-6 gap-y-1 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-slate-700">
+          <span>TDEE gốc: <strong>{formatNumber(tdeeTarget)} kcal</strong></span>
+          <span>
+            Mục tiêu theo sức khỏe:{' '}
+            <strong className="text-emerald-700">{formatNumber(calorieTarget)} kcal/ngày</strong>
+          </span>
+        </div>
+      )}
 
       {loading ? (
         <LoadingPanel />
@@ -1150,9 +1168,9 @@ function buildTrendInsights(
         activeDays.reduce((sum, day) => sum + Number(day.calories), 0) /
         activeDays.length;
       if (averageCalories > calorieTarget * 1.15) {
-        insights.push('Calories trung bình của các ngày có thực đơn đang vượt mục tiêu TDEE.');
+        insights.push('Calories trung bình của các ngày có thực đơn đang vượt mục tiêu năng lượng theo hồ sơ sức khỏe.');
       } else if (averageCalories < calorieTarget * 0.7) {
-        insights.push('Calories trung bình của các ngày có thực đơn đang thấp hơn nhiều so với TDEE.');
+        insights.push('Calories trung bình của các ngày có thực đơn đang thấp hơn nhiều so với mục tiêu năng lượng cá nhân.');
       }
     }
   }

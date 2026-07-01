@@ -654,14 +654,22 @@ export class ChatbotActionHandler {
           );
 
         case 'calculate_calories':
-          const user = await this.userRepo.findOne({ where: { id: userId } });
+          const user = await this.userRepo.findOne({
+            where: { id: userId },
+            relations: ['preferences'],
+          });
           if (!user) return { error: 'Không tìm thấy thông tin người dùng' };
 
           const tdee = this.calorieService.calculateTDEE(user);
-          const mealDist = this.calorieService.getMealDistribution(tdee);
+          const calorieTargets =
+            this.calorieService.getUserCalorieTargets(user);
+          const mealDist = calorieTargets.meals;
 
           return {
             tdee: tdee || 'Chưa thiết lập chỉ số cơ thể',
+            adjustedDailyCalorieTarget:
+              calorieTargets.adjustedDailyTarget,
+            calorieGoal: calorieTargets.goal,
             user: {
               fullName: user.fullName,
               weight: user.weight,
@@ -671,7 +679,7 @@ export class ChatbotActionHandler {
             },
             mealDistribution: mealDist,
             message: tdee
-              ? `TDEE của bạn là ${tdee} kcal/ngày. Phân bổ hợp lý: Bữa sáng ${mealDist.breakfast} kcal, Bữa trưa ${mealDist.lunch} kcal, Bữa tối ${mealDist.dinner} kcal.`
+              ? `TDEE của bạn là ${tdee} kcal/ngày. Mục tiêu theo hồ sơ sức khỏe là ${calorieTargets.adjustedDailyTarget} kcal/ngày. Phân bổ: Bữa sáng ${mealDist.breakfast} kcal, Bữa trưa ${mealDist.lunch} kcal, Bữa tối ${mealDist.dinner} kcal.`
               : 'Vui lòng cập nhật chiều cao, cân nặng, giới tính và ngày sinh trong trang cá nhân để AI tính toán TDEE chính xác.',
           };
 

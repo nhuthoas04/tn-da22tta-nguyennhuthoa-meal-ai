@@ -463,7 +463,7 @@ export class MealPlanService {
           remainingDailyCapacity,
         );
 
-        const calorieTarget = this.calorieService.getMealDistribution(user?.dailyCalorieTarget || 2000);
+        const calorieTarget = this.calorieService.getMealDistribution(this.getAdjustedDailyCalorieTarget(user));
         const recTarget = calorieTarget ? calorieTarget[mealType] || 700 : 700;
         const recCurrent = dayItemsList
           .filter((item) => item.mealType === mealType && item.recipe)
@@ -494,7 +494,7 @@ export class MealPlanService {
             currentDayCalories: dayItemsList
               .filter((item) => item.recipe)
               .reduce((sum, item) => sum + Number(item.recipe?.calories || item.calories || 0), 0),
-            dayTargetCalories: user?.dailyCalorieTarget || 2000,
+            dayTargetCalories: this.getAdjustedDailyCalorieTarget(user),
           },
         );
         this.logRepeatDebug(
@@ -547,7 +547,7 @@ export class MealPlanService {
         (sum, item) => sum + (item.calories || 0),
         0,
       );
-      const dailyCalTarget = user?.dailyCalorieTarget || 2000;
+      const dailyCalTarget = this.getAdjustedDailyCalorieTarget(user);
 
       // If calories are insufficient, prioritize scaling portions first (Tăng khẩu phần)
       if (dayCalories < dailyCalTarget && dayCalories > 0) {
@@ -588,7 +588,7 @@ export class MealPlanService {
             continue;
           }
 
-          const calorieTarget = this.calorieService.getMealDistribution(user?.dailyCalorieTarget || 2000);
+          const calorieTarget = this.calorieService.getMealDistribution(this.getAdjustedDailyCalorieTarget(user));
           const recTarget = calorieTarget ? calorieTarget[mealType] || 700 : 700;
           const recCurrent = dayItemsList
             .filter((item) => item.mealType === mealType && item.recipe)
@@ -618,7 +618,7 @@ export class MealPlanService {
               currentDayCalories: dayItemsList
                 .filter((item) => item.recipe)
                 .reduce((sum, item) => sum + Number(item.recipe?.calories || item.calories || 0), 0),
-              dayTargetCalories: user?.dailyCalorieTarget || 2000,
+              dayTargetCalories: this.getAdjustedDailyCalorieTarget(user),
             },
           );
           this.logRepeatDebug(
@@ -1075,7 +1075,7 @@ export class MealPlanService {
         relations: ['preferences'],
       });
       const servings = this.getUserServingsOrThrow(user);
-      const dailyCalorieTarget = user?.dailyCalorieTarget || 2000;
+      const dailyCalorieTarget = this.getAdjustedDailyCalorieTarget(user);
 
       const optResult = await this.optimizeMealPlanItemsForPortions(
         plan.id,
@@ -1261,7 +1261,7 @@ export class MealPlanService {
                 mealTypesToGenerate.includes(itemToReplace.mealType) &&
                 !this.isMealSlotInPast(date, itemToReplace.mealType)
               ) {
-                const calorieTarget = this.calorieService.getMealDistribution(user?.dailyCalorieTarget || 2000);
+                const calorieTarget = this.calorieService.getMealDistribution(this.getAdjustedDailyCalorieTarget(user));
                 const recTarget = calorieTarget ? calorieTarget[itemToReplace.mealType] || 700 : 700;
                 const recCurrent = dayItemsList
                   .filter((item) => item.mealType === itemToReplace.mealType && item.recipe && item.id !== itemToReplace.id)
@@ -1297,7 +1297,7 @@ export class MealPlanService {
                       currentDayCalories: dayItemsList
                         .filter((item) => item.recipe)
                         .reduce((sum, item) => sum + Number(item.recipe?.calories || item.calories || 0), 0),
-                      dayTargetCalories: user?.dailyCalorieTarget || 2000,
+                      dayTargetCalories: this.getAdjustedDailyCalorieTarget(user),
                     },
                   );
 
@@ -1379,7 +1379,7 @@ export class MealPlanService {
         const neededCount = slotTargets[mealType]?.neededCount || 0;
         if (neededCount <= 0) continue;
 
-        const calorieTarget = this.calorieService.getMealDistribution(user?.dailyCalorieTarget || 2000);
+        const calorieTarget = this.calorieService.getMealDistribution(this.getAdjustedDailyCalorieTarget(user));
         const recTarget = calorieTarget ? calorieTarget[mealType] || 700 : 700;
         const recCurrent = dayItemsList
           .filter((item) => item.mealType === mealType && item.recipe)
@@ -1414,7 +1414,7 @@ export class MealPlanService {
             currentDayCalories: dayItemsList
               .filter((item) => item.recipe)
               .reduce((sum, item) => sum + Number(item.recipe?.calories || item.calories || 0), 0),
-            dayTargetCalories: user?.dailyCalorieTarget || 2000,
+            dayTargetCalories: this.getAdjustedDailyCalorieTarget(user),
           },
         );
 
@@ -1491,7 +1491,7 @@ export class MealPlanService {
         (sum, item) => sum + (item.calories || 0),
         0,
       );
-      const dailyCalTarget = user?.dailyCalorieTarget || 2000;
+      const dailyCalTarget = this.getAdjustedDailyCalorieTarget(user);
 
       // If calories are insufficient, prioritize scaling portions first (Tăng khẩu phần)
       if (dayCalories < dailyCalTarget && dayCalories > 0) {
@@ -1529,7 +1529,7 @@ export class MealPlanService {
             continue;
           }
 
-          const calorieTarget = this.calorieService.getMealDistribution(user?.dailyCalorieTarget || 2000);
+          const calorieTarget = this.calorieService.getMealDistribution(this.getAdjustedDailyCalorieTarget(user));
           const recTarget = calorieTarget ? calorieTarget[mealType] || 700 : 700;
           const recCurrent = dayItemsList
             .filter((item) => item.mealType === mealType && item.recipe)
@@ -1564,7 +1564,7 @@ export class MealPlanService {
               currentDayCalories: dayItemsList
                 .filter((item) => item.recipe)
                 .reduce((sum, item) => sum + Number(item.recipe?.calories || item.calories || 0), 0),
-              dayTargetCalories: user?.dailyCalorieTarget || 2000,
+              dayTargetCalories: this.getAdjustedDailyCalorieTarget(user),
             },
           );
           this.logRepeatDebug(
@@ -1740,7 +1740,13 @@ export class MealPlanService {
     });
     if (!plan) throw new NotFoundException('Meal plan not found');
 
-      const user = await this.userRepo.findOne({ where: { id: userId } });
+      const user = await this.userRepo.findOne({
+        where: { id: userId },
+        relations: ['preferences'],
+      });
+      const calorieTargets = user
+        ? this.calorieService.getUserCalorieTargets(user)
+        : null;
       const daily = this.calculateNutrition(plan.items);
       const totalDishes = daily.reduce((sum, d) => sum + d.dishCount, 0);
       const dataDays = daily.filter((day) => day.dishCount > 0).length;
@@ -1799,7 +1805,9 @@ export class MealPlanService {
     };
 
     return {
-      calorieTarget: user?.dailyCalorieTarget || 0,
+      calorieTarget: calorieTargets?.adjustedDailyTarget || 0,
+      tdeeCalories: calorieTargets?.tdee || 0,
+      calorieGoal: calorieTargets?.goal || 'maintenance',
       daily,
       weeklyAvg,
         macroDistribution,
@@ -2546,6 +2554,14 @@ export class MealPlanService {
     }
 
     return selected;
+  }
+
+  private getAdjustedDailyCalorieTarget(user?: User | null): number {
+    if (!user) return 2000;
+    return (
+      this.calorieService.getUserCalorieTargets(user).adjustedDailyTarget ||
+      2000
+    );
   }
 
   async toggleConsume(

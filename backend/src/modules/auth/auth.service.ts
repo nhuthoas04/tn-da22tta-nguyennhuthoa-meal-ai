@@ -82,6 +82,7 @@ export class AuthService {
     }
 
     const tokens = await this.generateTokens(user);
+    const calorieTargets = this.calorieService.getUserCalorieTargets(user);
 
     return {
       ...tokens,
@@ -91,6 +92,10 @@ export class AuthService {
         fullName: user.fullName,
         role: user.role,
         dailyCalorieTarget: user.dailyCalorieTarget,
+        adjustedDailyCalorieTarget: calorieTargets.adjustedDailyTarget,
+        calorieGoal: calorieTargets.goal,
+        calorieBreakdown: calorieTargets.meals,
+        preferences: user.preferences,
         emailVerified: user.emailVerified,
       },
     };
@@ -120,6 +125,7 @@ export class AuthService {
     });
 
     if (!user) return null;
+    const calorieTargets = this.calorieService.getUserCalorieTargets(user);
 
     return {
       id: user.id,
@@ -135,6 +141,9 @@ export class AuthService {
       height: user.height,
       activityLevel: user.activityLevel,
       dailyCalorieTarget: user.dailyCalorieTarget,
+      adjustedDailyCalorieTarget: calorieTargets.adjustedDailyTarget,
+      calorieGoal: calorieTargets.goal,
+      calorieBreakdown: calorieTargets.meals,
       preferences: user.preferences
         ? {
             dietType: user.preferences.dietType,
@@ -198,17 +207,17 @@ export class AuthService {
       }
       Object.assign(prefs, dto.preferences);
       await this.prefRepo.save(prefs);
+      user.preferences = prefs;
     }
 
-    // Return calorie breakdown
-    const breakdown = this.calorieService.getMealDistribution(
-      user.dailyCalorieTarget,
-    );
+    const calorieTargets = this.calorieService.getUserCalorieTargets(user);
 
     return {
       message: 'Profile updated',
       dailyCalorieTarget: user.dailyCalorieTarget,
-      calorieBreakdown: breakdown,
+      adjustedDailyCalorieTarget: calorieTargets.adjustedDailyTarget,
+      calorieGoal: calorieTargets.goal,
+      calorieBreakdown: calorieTargets.meals,
     };
   }
 

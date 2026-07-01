@@ -157,6 +157,9 @@ export class MealPlanController {
       targetDate?: string;
       scope?: 'day' | 'week';
       source?: string;
+      healthConditions?: string;
+      tdee?: number;
+      adjustedDailyCalorieTarget?: number;
       useAntiWaste?: boolean;
       mealType?: string;
       mealTypes?: string[];

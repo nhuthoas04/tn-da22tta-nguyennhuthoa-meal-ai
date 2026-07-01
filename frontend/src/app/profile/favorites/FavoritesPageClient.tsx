@@ -364,7 +364,12 @@ export default function FavoritesPage() {
 
       const warnings = checkMealPlanWarnings({
         peopleCount: servings,
-        tdee: Number(user?.dailyCalorieTarget || (user as any)?.preferences?.dailyCalorieTarget || 2000),
+        tdee: Number(
+          user?.adjustedDailyCalorieTarget ||
+          user?.dailyCalorieTarget ||
+          (user as any)?.preferences?.dailyCalorieTarget ||
+          2000,
+        ),
         mealType: selectedMeal,
         currentDayItems: dayItems,
         currentMealItems: dayItems.filter((item: any) => item.mealType === selectedMeal),

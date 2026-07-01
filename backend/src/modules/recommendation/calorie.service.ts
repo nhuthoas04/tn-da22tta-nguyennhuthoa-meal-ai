@@ -1,5 +1,20 @@
 import { Injectable } from '@nestjs/common';
 import { User } from '../auth/entities/user.entity';
+import {
+  HEALTH_CONDITIONS,
+  parseHealthConditions,
+} from './health-goal.constants';
+
+export type UserCalorieTargets = {
+  tdee: number | null;
+  adjustedDailyTarget: number | null;
+  goal: 'weight_loss' | 'muscle_gain' | 'maintenance';
+  meals: {
+    breakfast: number;
+    lunch: number;
+    dinner: number;
+  };
+};
 
 /**
  * Calorie Calculator Service
@@ -74,6 +89,52 @@ export class CalorieService {
     const tdee = Math.round(bmr * activityFactor);
 
     return tdee;
+  }
+
+  getAdjustedDailyCalorieTarget(
+    tdee: number | null,
+    gender?: string | null,
+    healthConditions?: string | null,
+  ): number | null {
+    if (!tdee || !Number.isFinite(Number(tdee)) || Number(tdee) <= 0) {
+      return null;
+    }
+
+    const conditions = parseHealthConditions(healthConditions);
+    if (conditions.includes(HEALTH_CONDITIONS.WEIGHT_LOSS)) {
+      const minimum = gender?.toLowerCase() === 'male' ? 1500 : 1200;
+      return Math.max(minimum, Math.round(Number(tdee) * 0.85));
+    }
+
+    if (conditions.includes(HEALTH_CONDITIONS.MUSCLE_GAIN)) {
+      return Math.round(Number(tdee) * 1.1);
+    }
+
+    return Math.round(Number(tdee));
+  }
+
+  getUserCalorieTargets(user: User): UserCalorieTargets {
+    const tdee = Number(user?.dailyCalorieTarget) || this.calculateTDEE(user);
+    const conditions = parseHealthConditions(
+      user?.preferences?.healthConditions,
+    );
+    const adjustedDailyTarget = this.getAdjustedDailyCalorieTarget(
+      tdee,
+      user?.gender,
+      user?.preferences?.healthConditions,
+    );
+    const goal = conditions.includes(HEALTH_CONDITIONS.WEIGHT_LOSS)
+      ? 'weight_loss'
+      : conditions.includes(HEALTH_CONDITIONS.MUSCLE_GAIN)
+        ? 'muscle_gain'
+        : 'maintenance';
+
+    return {
+      tdee,
+      adjustedDailyTarget,
+      goal,
+      meals: this.getMealDistribution(adjustedDailyTarget),
+    };
   }
 
   /**

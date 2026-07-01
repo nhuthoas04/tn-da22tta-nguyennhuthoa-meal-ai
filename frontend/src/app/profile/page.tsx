@@ -5,7 +5,13 @@ import { authAPI } from '@/lib/api';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 import { HiUser, HiFire, HiSave, HiHeart, HiBookOpen, HiEye, HiStar, HiCalendar, HiChevronDown, HiChevronUp } from 'react-icons/hi';
-import { ACTIVITY_FACTORS, calculateTdee, type TdeeResult } from '@/lib/tdee-utils';
+import {
+  ACTIVITY_FACTORS,
+  calculateTdee,
+  getAdjustedDailyCalorieTarget,
+  getDailyMealCalorieTargets,
+  type TdeeResult,
+} from '@/lib/tdee-utils';
 
 type ServingsValidation =
   | { valid: true; servings: number }
@@ -16,7 +22,6 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [profile, setProfile] = useState<any>(null);
-  const [calorieBreakdown, setCalorieBreakdown] = useState<any>(null);
   const [allergyInput, setAllergyInput] = useState('');
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [stats, setStats] = useState<any>(null);
@@ -76,7 +81,7 @@ export default function ProfilePage() {
 
     setSaving(true);
     try {
-      const res = await authAPI.updateProfile({
+      await authAPI.updateProfile({
         fullName: profile.fullName,
         gender: profile.gender,
         dateOfBirth: profile.dateOfBirth,
@@ -89,7 +94,6 @@ export default function ProfilePage() {
         },
       });
       toast.success('Đã cập nhật hồ sơ!');
-      setCalorieBreakdown(res.data.calorieBreakdown);
       setServingsError('');
       refreshUser();
     } catch (err: any) {
@@ -158,6 +162,15 @@ export default function ProfilePage() {
   const isDiabetesChecked = currentConditions.includes('diabetes');
   const isHypertensionChecked = currentConditions.includes('hypertension');
   const isMuscleGainChecked = currentConditions.includes('muscle_gain');
+  const isWeightLossChecked = currentConditions.includes('weight_loss');
+  const adjustedCalorieTarget = calorieInfo.valid
+    ? getAdjustedDailyCalorieTarget(
+        calorieInfo.tdee,
+        profile.gender,
+        profile.preferences?.healthConditions,
+      )
+    : 0;
+  const adjustedMealTargets = getDailyMealCalorieTargets(adjustedCalorieTarget);
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto px-4 py-6 bg-brand-light-bg min-h-screen">
@@ -360,18 +373,31 @@ export default function ProfilePage() {
               </p>
               <div className="badge-ai">🤖 AI Đo lường</div>
             </div>
+            {adjustedCalorieTarget !== calorieInfo.tdee && (
+              <div className="mb-4 rounded-brand-sm border border-brand-primary/20 bg-white/70 px-4 py-3 text-sm text-slate-700">
+                <span className="font-semibold">
+                  Mục tiêu theo tình trạng sức khỏe:
+                </span>{' '}
+                <strong className="text-brand-primary">
+                  {adjustedCalorieTarget.toLocaleString('vi-VN')} kcal/ngày
+                </strong>
+                <span className="ml-2 text-xs text-slate-500">
+                  ({isWeightLossChecked ? 'giảm cân' : 'tăng cơ'})
+                </span>
+              </div>
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3 relative z-10">
               <div className="text-center bg-white/60 p-3 rounded-brand-sm border border-brand-primary/10 hover:border-brand-primary/30 transition-all shadow-brand-sm">
                 <p className="text-[10px] text-brand-primary font-extrabold uppercase tracking-wider">🌅 Sáng (30%)</p>
-                <p className="font-extrabold text-slate-900 text-sm mt-1.5">{calorieInfo.breakdown?.breakfast} kcal</p>
+                <p className="font-extrabold text-slate-900 text-sm mt-1.5">{adjustedMealTargets.breakfast} kcal</p>
               </div>
               <div className="text-center bg-white/60 p-3 rounded-brand-sm border border-brand-primary/10 hover:border-brand-primary/30 transition-all shadow-brand-sm">
                 <p className="text-[10px] text-brand-secondary font-extrabold uppercase tracking-wider">☀️ Trưa (40%)</p>
-                <p className="font-extrabold text-slate-900 text-sm mt-1.5">{calorieInfo.breakdown?.lunch} kcal</p>
+                <p className="font-extrabold text-slate-900 text-sm mt-1.5">{adjustedMealTargets.lunch} kcal</p>
               </div>
               <div className="text-center bg-white/60 p-3 rounded-brand-sm border border-brand-primary/10 hover:border-brand-primary/30 transition-all shadow-brand-sm">
                 <p className="text-[10px] text-brand-accent font-extrabold uppercase tracking-wider">🌙 Tối (30%)</p>
-                <p className="font-extrabold text-slate-900 text-sm mt-1.5">{calorieInfo.breakdown?.dinner} kcal</p>
+                <p className="font-extrabold text-slate-900 text-sm mt-1.5">{adjustedMealTargets.dinner} kcal</p>
               </div>
             </div>
           </div>

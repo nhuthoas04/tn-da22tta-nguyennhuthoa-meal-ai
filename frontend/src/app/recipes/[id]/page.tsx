@@ -379,7 +379,12 @@ export default function RecipeDetailPage() {
         const mealItems = dayItems.filter((item: any) => item.mealType === selectedMeal);
 
         const peopleCount = Number((user as any)?.servings || (user as any)?.preferences?.servings || 1);
-        const tdee = Number((user as any)?.dailyCalorieTarget || (user as any)?.preferences?.dailyCalorieTarget || 2000);
+        const tdee = Number(
+          (user as any)?.adjustedDailyCalorieTarget ||
+          (user as any)?.dailyCalorieTarget ||
+          (user as any)?.preferences?.dailyCalorieTarget ||
+          2000,
+        );
 
         const warnings = checkMealPlanWarnings({
           peopleCount,

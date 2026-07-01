@@ -6,6 +6,46 @@ export const ACTIVITY_FACTORS: Record<string, { label: string; factor: number }>
   very_active: { label: 'Rất nhiều', factor: 1.9 },
 };
 
+export const HEALTH_CONDITIONS = {
+  diabetes: 'diabetes',
+  hypertension: 'hypertension',
+  weightLoss: 'weight_loss',
+  muscleGain: 'muscle_gain',
+} as const;
+
+export function parseHealthConditions(value?: string | null) {
+  return String(value || '')
+    .split(',')
+    .map((condition) => condition.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+export function getAdjustedDailyCalorieTarget(
+  tdee: number,
+  gender?: string | null,
+  healthConditions?: string | null,
+) {
+  if (!Number.isFinite(tdee) || tdee <= 0) return 0;
+  const conditions = parseHealthConditions(healthConditions);
+
+  if (conditions.includes(HEALTH_CONDITIONS.weightLoss)) {
+    const minimum = gender?.toLowerCase() === 'male' ? 1500 : 1200;
+    return Math.max(minimum, Math.round(tdee * 0.85));
+  }
+  if (conditions.includes(HEALTH_CONDITIONS.muscleGain)) {
+    return Math.round(tdee * 1.1);
+  }
+  return Math.round(tdee);
+}
+
+export function getDailyMealCalorieTargets(dailyTarget: number) {
+  return {
+    breakfast: Math.round(dailyTarget * 0.3),
+    lunch: Math.round(dailyTarget * 0.4),
+    dinner: Math.round(dailyTarget * 0.3),
+  };
+}
+
 type TdeeInput = {
   weight?: number | string | null;
   height?: number | string | null;
@@ -89,11 +129,7 @@ export function calculateTdee(input: TdeeInput): TdeeResult {
     activityFactor: activity.factor,
     bmr: Math.round(bmr),
     tdee,
-    breakdown: {
-      breakfast: Math.round(tdee * 0.3),
-      lunch: Math.round(tdee * 0.4),
-      dinner: Math.round(tdee * 0.3),
-    },
+    breakdown: getDailyMealCalorieTargets(tdee),
   };
 }
 

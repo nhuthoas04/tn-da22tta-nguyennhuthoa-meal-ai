@@ -1120,7 +1120,9 @@ export default function HomePage() {
   }
 
   // ==================== 2. AUTHENTICATED USER AI DASHBOARD VIEW ====================
-  const calorieTarget = Number(user.dailyCalorieTarget) || 0;
+  const calorieTarget = Number(
+    user.adjustedDailyCalorieTarget || user.dailyCalorieTarget,
+  ) || 0;
   const caloriesConsumed = getCaloriesConsumed();
   const calorieProgress = calorieTarget > 0 ? Math.min(100, Math.round((caloriesConsumed / calorieTarget) * 100)) : 0;
   const todayMeals = getTodayMeals();

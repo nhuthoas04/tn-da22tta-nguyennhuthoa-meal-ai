@@ -10,6 +10,10 @@ import { Favorite } from '../recipes/entities/favorite.entity';
 import { CalorieService } from './calorie.service';
 import { UserActionLog } from '../chatbot/entities/user-action-log.entity';
 import { MealPlanItem } from '../meal-plan/entities/meal-plan-item.entity';
+import {
+  HEALTH_CONDITIONS,
+  parseHealthConditions,
+} from './health-goal.constants';
 
 type RecommendationOptions = {
   excludeIds?: string[];
@@ -107,21 +111,29 @@ export class RecommendationService {
       take: 100,
     });
 
-    // Calculate calorie targets
-    const calorieTarget = this.calorieService.getMealDistribution(
-      user.dailyCalorieTarget,
+    const healthConditions = parseHealthConditions(
+      preferences?.healthConditions,
     );
-    const targetForMeal = options.mealTargetCalories !== undefined && options.mealTargetCalories !== null
-      ? Number(options.mealTargetCalories)
-      : (calorieTarget ? calorieTarget[mealType] || 700 : 700);
+    const isWeightLossGoal =
+      healthConditions.includes(HEALTH_CONDITIONS.WEIGHT_LOSS) ||
+      preferences?.dietType === 'weight_loss';
+    const userCalorieTargets = this.calorieService.getUserCalorieTargets(user);
+    const adjustedDailyTarget =
+      userCalorieTargets.adjustedDailyTarget ||
+      Number(options.dayTargetCalories) ||
+      2000;
+    const calorieTarget =
+      this.calorieService.getMealDistribution(adjustedDailyTarget);
+    const targetForMeal = calorieTarget[mealType] || 700;
 
     const currentMealCalories = options.currentMealCalories !== undefined && options.currentMealCalories !== null
       ? Number(options.currentMealCalories)
       : 0;
 
-    const remainingMealCalories = options.remainingMealCalories !== undefined && options.remainingMealCalories !== null
-      ? Number(options.remainingMealCalories)
-      : Math.max(0, targetForMeal - currentMealCalories);
+    const remainingMealCalories = Math.max(
+      0,
+      targetForMeal - currentMealCalories,
+    );
 
     // Get user's favorited recipe IDs for preference scoring
     const favorites = await this.favoriteRepo.find({ where: { userId } });
@@ -233,13 +245,6 @@ export class RecommendationService {
       }
     }
 
-    // Parse health conditions
-    const healthConditions = preferences?.healthConditions
-      ? preferences.healthConditions
-        .split(',')
-        .map((c) => c.trim().toLowerCase())
-      : [];
-
     // 1.1. Diabetes Filter (Loại món ăn nhiều đường)
     if (healthConditions.includes('diabetes')) {
       const maxSugar = (preferences?.maxSugarPerMeal !== null && preferences?.maxSugarPerMeal !== undefined)
@@ -260,12 +265,18 @@ export class RecommendationService {
       );
     }
 
-    // 1.3. Weight Loss Calorie Limit Filter (Loại món vượt calorie mục tiêu bữa ăn 110%)
-    if (
-      healthConditions.includes('weight_loss') ||
-      preferences?.dietType === 'weight_loss'
-    ) {
-      recipes = recipes.filter((r) => r.calories <= targetForMeal * 1.1);
+    // Keep high-calorie recipes only as fallback when the catalog is small.
+    if (isWeightLossGoal) {
+      const maximumRecipeCalories =
+        currentMealCalories >= targetForMeal ? 250 : targetForMeal * 0.9;
+      const calorieSuitableRecipes = recipes.filter(
+        (recipe) =>
+          Number(recipe.calories || 0) <= maximumRecipeCalories,
+      );
+      const minimumPoolSize = Math.min(5, recipes.length);
+      if (calorieSuitableRecipes.length >= minimumPoolSize) {
+        recipes = calorieSuitableRecipes;
+      }
     }
 
     // 1.4. Muscle Gain Protein Minimum Filter (Loại món không đáp ứng protein tối thiểu)
@@ -329,10 +340,82 @@ export class RecommendationService {
 
       const dayCaloriesFitScoreVal = this.calculateDayCaloriesFitScore({
         currentDayCalories: options.currentDayCalories || 0,
-        dayTargetCalories: options.dayTargetCalories || user.dailyCalorieTarget || 2000,
+        dayTargetCalories: adjustedDailyTarget,
         recipeCalories,
       });
       const dayCaloriesFitScoreNorm = (dayCaloriesFitScoreVal + 25) / 50;
+      const descriptors = [
+        recipe.name,
+        ...(recipe.tags || []),
+      ]
+        .join(' ')
+        .toLocaleLowerCase('vi-VN');
+      const isFriedOrHighFat = [
+        'chiên',
+        'rán',
+        'fried',
+        'high-fat',
+        'nhiều dầu',
+        'xào nhiều dầu',
+      ].some((keyword) => descriptors.includes(keyword));
+      const isLightCooking = [
+        'salad',
+        'canh',
+        'luộc',
+        'hấp',
+        'rau',
+        'ít béo',
+        'thịt nạc',
+        'cá',
+        'đậu',
+      ].some((keyword) => descriptors.includes(keyword));
+      const isSugary = ['ngọt', 'đường', 'bánh kem', 'nước ngọt'].some(
+        (keyword) => descriptors.includes(keyword),
+      );
+      const isSalty = ['mặn', 'muối', 'khô', 'mắm'].some((keyword) =>
+        descriptors.includes(keyword),
+      );
+      const afterAddMealCalories = currentMealCalories + recipeCalories;
+      const afterAddDayCalories =
+        Number(options.currentDayCalories || 0) + recipeCalories;
+      let healthGoalAdjustment = 0;
+
+      if (isWeightLossGoal) {
+        if (afterAddMealCalories > targetForMeal * 1.05) {
+          healthGoalAdjustment -= 0.35;
+        }
+        if (afterAddDayCalories > adjustedDailyTarget * 1.05) {
+          healthGoalAdjustment -= 0.35;
+        }
+        if (recipeCalories > targetForMeal * 0.9) {
+          healthGoalAdjustment -= 0.25;
+        }
+        if (isFriedOrHighFat) healthGoalAdjustment -= 0.2;
+        if (isLightCooking) healthGoalAdjustment += 0.1;
+        if (
+          remainingMealCalories > 0 &&
+          recipeCalories <= remainingMealCalories &&
+          recipeCalories >= remainingMealCalories * 0.4
+        ) {
+          healthGoalAdjustment += 0.1;
+        }
+      }
+
+      if (healthConditions.includes(HEALTH_CONDITIONS.MUSCLE_GAIN)) {
+        healthGoalAdjustment += Number(recipe.protein || 0) >= 25 ? 0.15 : -0.1;
+      }
+      if (
+        healthConditions.includes(HEALTH_CONDITIONS.DIABETES) &&
+        isSugary
+      ) {
+        healthGoalAdjustment -= 0.25;
+      }
+      if (
+        healthConditions.includes(HEALTH_CONDITIONS.HYPERTENSION) &&
+        isSalty
+      ) {
+        healthGoalAdjustment -= 0.25;
+      }
 
       // Calculate dynamic diversity score adjustment
       let diversityScore = 0;
@@ -414,6 +497,7 @@ export class RecommendationService {
         total +
         habitAdjust +
         diversityScore +
+        healthGoalAdjustment +
         newRecipeBonus / 100 -
         repeatPenalty / 100;
       total = Math.max(0, Math.min(1.0, unclampedTotal));
@@ -428,6 +512,37 @@ export class RecommendationService {
         caloriesFitScoreVal,
         dayCaloriesFitScoreVal,
       );
+      if (isWeightLossGoal) {
+        if (
+          afterAddMealCalories <= targetForMeal * 1.05 &&
+          afterAddDayCalories <= adjustedDailyTarget * 1.05
+        ) {
+          reasons.unshift('Phù hợp mục tiêu giảm cân');
+          reasons.push('Không làm vượt mục tiêu năng lượng ngày');
+        } else {
+          reasons.push('Không phù hợp vì vượt mục tiêu kcal');
+        }
+        if (isLightCooking) reasons.push('Ưu tiên món ít dầu mỡ');
+        if (isFriedOrHighFat) reasons.push('Hạn chế do món chiên hoặc nhiều dầu');
+      }
+      if (
+        healthConditions.includes(HEALTH_CONDITIONS.MUSCLE_GAIN) &&
+        Number(recipe.protein || 0) >= 25
+      ) {
+        reasons.push('Giàu protein, phù hợp mục tiêu tăng cơ');
+      }
+      if (
+        healthConditions.includes(HEALTH_CONDITIONS.DIABETES) &&
+        isSugary
+      ) {
+        reasons.push('Hạn chế do có dấu hiệu chứa nhiều đường');
+      }
+      if (
+        healthConditions.includes(HEALTH_CONDITIONS.HYPERTENSION) &&
+        isSalty
+      ) {
+        reasons.push('Hạn chế do có dấu hiệu chứa nhiều muối');
+      }
 
       // Find which inventory items match and which are missing
       const matchedInventory = [];
@@ -476,6 +591,7 @@ export class RecommendationService {
           ...scores,
           caloriesFitScore: caloriesFitScoreNorm,
           dayCaloriesFitScore: dayCaloriesFitScoreNorm,
+          healthGoalAdjustment,
         },
         reasons,
         matchedInventory,
@@ -488,10 +604,16 @@ export class RecommendationService {
 
     return {
       calorieTarget: {
-        daily: user.dailyCalorieTarget,
+        tdee: userCalorieTargets.tdee,
+        daily: adjustedDailyTarget,
+        goal: userCalorieTargets.goal,
         ...calorieTarget,
         targetForMeal,
       },
+      warning:
+        isWeightLossGoal && currentMealCalories >= targetForMeal
+          ? 'Bữa này đã vượt mục tiêu kcal, nên đổi sang món nhẹ hơn.'
+          : null,
       recommendations: scored.slice(0, limit),
     };
   }
