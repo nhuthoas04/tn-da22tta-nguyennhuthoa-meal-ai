@@ -887,7 +887,11 @@ export default function RecipeDetailPage() {
                       </div>
                     </div>
                   ) : (
-                    <p className="text-slate-700 text-sm pl-12 whitespace-pre-line leading-relaxed font-medium">
+                    <p className={`text-sm pl-12 whitespace-pre-line leading-relaxed font-medium ${
+                      r.isFlagged
+                        ? 'text-red-700 italic'
+                        : 'text-slate-700'
+                    }`}>
                       {r.review || <span className="text-slate-400 italic font-normal">Không có nhận xét bằng văn bản.</span>}
                     </p>
                   )}
@@ -939,7 +943,13 @@ export default function RecipeDetailPage() {
                               {new Date(rep.createdAt).toLocaleDateString('vi-VN')}
                             </span>
                           </div>
-                          <p className="text-xs text-slate-700 leading-relaxed font-semibold pl-8">{rep.review}</p>
+                          <p className={`pl-8 text-xs leading-relaxed font-semibold ${
+                            rep.isFlagged
+                              ? 'text-red-700 italic'
+                              : 'text-slate-700'
+                          }`}>
+                            {rep.review}
+                          </p>
                         </div>
                       ))}
                     </div>

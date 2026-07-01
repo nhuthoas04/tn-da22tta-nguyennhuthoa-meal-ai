@@ -35,6 +35,13 @@ export class RecipeRatingService {
     private readonly notificationService: NotificationService,
   ) {}
 
+  private toPublicRatingResponse(rating: RecipeRating): RecipeRating {
+    return {
+      ...rating,
+      originalReview: null,
+    } as RecipeRating;
+  }
+
   async createOrUpdateRating(
     userId: string,
     recipeId: string,
@@ -159,7 +166,7 @@ export class RecipeRatingService {
       );
     }
 
-    return savedRating;
+    return this.toPublicRatingResponse(savedRating);
   }
 
   async getRatingsForRecipe(
@@ -306,7 +313,7 @@ export class RecipeRatingService {
       );
     }
 
-    return savedRating;
+    return this.toPublicRatingResponse(savedRating);
   }
 
   async deleteRating(
@@ -453,7 +460,7 @@ export class RecipeRatingService {
       }
     }
 
-    return savedReply;
+    return this.toPublicRatingResponse(savedReply);
   }
 
   // ==================== ADMIN MODERATION METHODS ====================

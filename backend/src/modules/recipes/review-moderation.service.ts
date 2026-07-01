@@ -11,14 +11,18 @@ const escapeRegExp = (value: string) =>
 export class ReviewModerationService {
   normalizeText(text = ''): string {
     return text
-      .normalize('NFC')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd')
+      .replace(/Đ/g, 'd')
       .toLowerCase()
       .replace(/0/g, 'o')
       .replace(/3/g, 'e')
       .replace(/[1!]/g, 'i')
       .replace(/@/g, 'a')
       .replace(/7/g, 't')
-      .replace(/[*_.-]+/g, '')
+      .replace(/[*_]+/g, '')
+      .replace(/[.,;:()[\]{}"“”'`~|/\\-]+/g, ' ')
       .replace(/[^\p{L}\p{N}]+/gu, ' ')
       .replace(/\s+/g, ' ')
       .trim();
@@ -40,13 +44,17 @@ export class ReviewModerationService {
 
     const matchedWords = BAD_WORDS.filter((badWord) => {
       const normalizedBadWord = this.normalizeText(badWord);
-      const pattern = normalizedBadWord
-        .split(' ')
-        .map(escapeRegExp)
-        .join('\\s+');
-      return new RegExp(`(?:^|\\s)${pattern}(?=\\s|$)`, 'u').test(
-        normalizedText,
-      );
+      if (!normalizedBadWord) {
+        return false;
+      }
+
+      const words = normalizedBadWord.split(' ');
+      const pattern =
+        words.length === 1 && normalizedBadWord.length <= 4
+          ? normalizedBadWord.split('').map(escapeRegExp).join('\\s*')
+          : words.map(escapeRegExp).join('\\s+');
+
+      return new RegExp(`(?:^|\\s)${pattern}(?=\\s|$)`, 'u').test(normalizedText);
     });
 
     return {
