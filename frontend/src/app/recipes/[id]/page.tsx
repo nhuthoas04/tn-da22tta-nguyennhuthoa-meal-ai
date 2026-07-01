@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { recipesAPI, mealPlanAPI, favoritesAPI } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
@@ -16,7 +17,7 @@ const MEAL_OPTIONS = [
   {
     key: 'breakfast',
     label: 'Sáng',
-    icon: 'â˜•',
+    icon: '☕',
     bg: 'bg-orange-50',
     border: 'border-orange-200',
     text: 'text-orange-600',
@@ -41,6 +42,37 @@ const MEAL_OPTIONS = [
     selected: 'ring-blue-300 border-blue-400 bg-blue-50',
   },
 ];
+
+const NUTRITION_ITEMS = [
+  { key: 'calories', label: 'Calories', unit: 'kcal', color: 'bg-brand-warning', max: 800 },
+  { key: 'protein', label: 'Protein', unit: 'g', color: 'bg-brand-secondary', max: 50 },
+  { key: 'carbs', label: 'Carbs', unit: 'g', color: 'bg-amber-500', max: 100 },
+  { key: 'fat', label: 'Fat', unit: 'g', color: 'bg-brand-danger', max: 40 },
+];
+
+function RecipeMetaBadge({ icon, label, value }: { icon: ReactNode; label: string; value: ReactNode }) {
+  return (
+    <div className="flex items-center gap-2 rounded-brand-sm border border-brand-light-border bg-white px-3 py-2 text-sm shadow-brand-sm">
+      <span className="text-lg text-brand-primary">{icon}</span>
+      <span className="text-slate-500">{label}</span>
+      <span className="font-bold text-slate-900">{value}</span>
+    </div>
+  );
+}
+
+function SectionHeader({ number, title, subtitle }: { number: string; title: string; subtitle?: string }) {
+  return (
+    <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex items-center gap-2">
+        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-primary text-sm font-bold text-white shadow-brand-sm">
+          {number}
+        </span>
+        <h2 className="text-xl font-bold text-slate-950">{title}</h2>
+      </div>
+      {subtitle && <p className="text-sm font-medium text-slate-500">{subtitle}</p>}
+    </div>
+  );
+}
 
 export default function RecipeDetailPage() {
   const params = useParams();
@@ -466,192 +498,187 @@ export default function RecipeDetailPage() {
   if (!recipe) return <div className="text-center py-20 text-gray-500">Không tìm thấy</div>;
 
   const todayValue = formatDateInput(new Date());
+  const ingredients = Array.isArray(recipe.ingredients) ? recipe.ingredients : [];
+  const steps = Array.isArray(recipe.steps) ? recipe.steps : [];
+  const ratingCount = Number(recipe.totalRatings ?? totalRatings ?? 0);
+  const averageRating = Number(recipe.averageRating || 0);
+  const mealTypeLabels = getMealTypeLabels(recipe.mealType);
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 px-4 py-6 bg-brand-light-bg min-h-screen">
-      <Link href="/recipes" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-brand-primary font-semibold transition-all">
-        <HiArrowLeft /> Trở lại danh sách
-      </Link>
+    <div className="min-h-screen bg-brand-light-bg">
+      <div className="mx-auto max-w-7xl space-y-6 px-3 py-4 sm:px-6 sm:py-6">
+        <Link href="/recipes" className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-brand-sm ring-1 ring-brand-light-border transition hover:text-brand-primary">
+          <HiArrowLeft /> Trở lại danh sách
+        </Link>
 
-      <div className="bg-white border border-brand-light-border rounded-brand-lg overflow-hidden shadow-brand-md transition-all duration-300">
-        <div className="h-64 bg-slate-100 relative overflow-hidden select-none">
-          <RecipeImage
-            src={recipe.imageUrl}
-            alt={recipe.name}
-            className="h-full w-full object-cover"
-            fallbackClassName="flex h-full w-full items-center justify-center bg-gradient-to-r from-brand-emerald to-brand-teal text-white"
-            iconClassName="text-8xl animate-brand-float"
-          />
-        </div>
-        <div className="p-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">{recipe.name}</h1>
-              <p className="text-sm text-slate-500 mt-1">{recipe.description}</p>
-              {recipe.totalRatings > 0 ? (
-                <div className="flex items-center gap-1 mt-2 text-sm text-amber-500 font-semibold bg-amber-50/50 border border-amber-200/50 px-2.5 py-1 rounded-brand-sm w-fit animate-fade-in">
-                  <div className="flex items-center">
-                    {Array.from({ length: 5 }).map((_, idx) => (
-                      <HiStar
-                        key={idx}
-                        className={idx < Math.round(Number(recipe.averageRating) || 0) ? 'text-amber-400 text-base' : 'text-slate-200 text-base'}
-                      />
-                    ))}
-                  </div>
-                  <span className="text-slate-700 ml-1">
-                    {Number(recipe.averageRating || 0).toFixed(1)} ({recipe.totalRatings} đánh giá)
-                  </span>
+        <section className="overflow-hidden rounded-brand-lg border border-brand-light-border bg-white shadow-brand-md">
+          <div className="grid gap-0 lg:grid-cols-[1.1fr_0.9fr]">
+            <div className="relative min-h-[280px] bg-slate-100 sm:min-h-[420px]">
+              <RecipeImage
+                src={recipe.imageUrl}
+                alt={recipe.name}
+                className="h-full w-full object-cover"
+                fallbackClassName="flex h-full w-full items-center justify-center bg-gradient-to-br from-brand-emerald to-brand-teal text-white"
+                iconClassName="text-8xl animate-brand-float"
+              />
+              <div className="absolute left-4 top-4 rounded-full bg-white/95 px-3 py-1.5 text-xs font-bold text-brand-primary shadow-brand-sm">
+                MealAI Recipe
+              </div>
+            </div>
+
+            <div className="flex flex-col justify-between gap-6 p-5 sm:p-8">
+              <div className="space-y-4">
+                <div className="flex flex-wrap gap-2">
+                  {recipe.cuisineRegion && (
+                    <span className="rounded-full border border-brand-primary/20 bg-brand-primary/10 px-3 py-1 text-xs font-bold text-brand-primary">
+                      {recipe.cuisineRegion}
+                    </span>
+                  )}
+                  {recipe.difficulty && (
+                    <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">
+                      {getDifficultyLabel(recipe.difficulty)}
+                    </span>
+                  )}
+                  {mealTypeLabels.map((label) => (
+                    <span key={label} className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
+                      Phù hợp bữa {label}
+                    </span>
+                  ))}
                 </div>
-              ) : (
-                <p className="text-xs text-slate-400 mt-2 font-medium">Chưa có đánh giá nào</p>
-              )}
-            </div>
-            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-              <button
-                onClick={openPlanSelector}
-                className="btn-primary w-full sm:w-auto justify-center"
-              >
-                <HiCalendar className="text-base" />
-                Thêm vào thực đơn
-              </button>
-              <button
-                onClick={toggleFav}
-                disabled={favoriteSubmitting}
-                className={`inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-brand-sm border font-semibold text-sm transition-all cursor-pointer w-full sm:w-auto ${
-                  isFav
-                    ? 'bg-red-50 border-brand-danger/30 text-brand-danger shadow-brand-sm'
-                    : 'bg-slate-50 border-brand-light-border text-slate-600 hover:text-brand-danger hover:bg-red-50/30'
-                } ${favoriteSubmitting ? 'opacity-70 cursor-not-allowed' : ''}`}
-                aria-label="Yêu thích"
-              >
-                {isFav ? <HiHeart className="text-xl" /> : <HiOutlineHeart className="text-xl" />}
-                <span>{isFav ? 'Đã yêu thích' : 'Yêu thích'}</span>
-              </button>
-            </div>
-          </div>
 
-          <div className="flex flex-wrap gap-4 mt-4">
-            <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-brand-sm text-sm border border-brand-light-border text-slate-650 font-semibold shadow-brand-sm">
-              <HiClock className="text-brand-primary" /> {recipe.cookingTime} phút
-            </div>
-            <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-brand-sm text-sm border border-brand-light-border text-slate-650 font-semibold shadow-brand-sm">
-              <HiFire className="text-brand-warning" /> {recipe.calories} kcal
-            </div>
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-brand-sm text-sm border border-brand-light-border text-slate-650 shadow-brand-sm">
-              <HiUsers className="text-brand-secondary animate-pulse" />
-              <span className="font-bold">Khẩu phần:</span>
-              <button
-                type="button"
-                onClick={() => setServings(prev => Math.max(1, prev - 1))}
-                className="w-6 h-6 flex items-center justify-center bg-white hover:bg-slate-100 border border-brand-light-border rounded-brand-sm font-bold text-xs transition cursor-pointer"
-              >
-                -
-              </button>
-              <span className="font-bold text-slate-800 w-4 text-center">{servings}</span>
-              <button
-                type="button"
-                onClick={() => setServings(prev => Math.min(20, prev + 1))}
-                className="w-6 h-6 flex items-center justify-center bg-white hover:bg-slate-100 border border-brand-light-border rounded-brand-sm font-bold text-xs transition cursor-pointer"
-              >
-                +
-              </button>
-              <span className="text-xs text-slate-400 font-medium">người</span>
-            </div>
-            {recipe.cuisineRegion && (
-              <span className="px-3 py-2 bg-brand-primary/10 text-brand-primary border border-brand-primary/20 rounded-brand-sm text-sm font-bold shadow-brand-sm">
-                📍 {recipe.cuisineRegion}
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="card-dashboard bg-white">
-          <h2 className="font-bold text-slate-900 text-base mb-4">Dinh dưỡng</h2>
-          <div className="space-y-3">
-            {[
-              { label: 'Calories', value: `${recipe.calories || 0} kcal`, color: 'bg-brand-warning', pct: Math.min(100, ((Number(recipe.calories) || 0) / 800) * 100) },
-              { label: 'Protein', value: `${recipe.protein || 0}g`, color: 'bg-brand-secondary', pct: Math.min(100, ((Number(recipe.protein) || 0) / 50) * 100) },
-              { label: 'Carbs', value: `${recipe.carbs || 0}g`, color: 'bg-amber-500', pct: Math.min(100, ((Number(recipe.carbs) || 0) / 100) * 100) },
-              { label: 'Fat', value: `${recipe.fat || 0}g`, color: 'bg-brand-danger', pct: Math.min(100, ((Number(recipe.fat) || 0) / 40) * 100) },
-            ].map((n) => (
-              <div key={n.label}>
-                <div className="flex justify-between text-sm mb-1 font-medium text-slate-655">
-                  <span>{n.label}</span>
-                  <span className="font-bold text-slate-850">{n.value}</span>
+                <div>
+                  <h1 className="text-3xl font-extrabold leading-tight text-slate-950 sm:text-4xl">{recipe.name}</h1>
+                  <p className="mt-3 max-w-2xl text-base leading-7 text-slate-600">
+                    {recipe.description || 'Công thức được MealAI tổng hợp để hỗ trợ lập thực đơn gia đình, cân bằng nguyên liệu và dinh dưỡng.'}
+                  </p>
                 </div>
-                <div className="w-full bg-slate-100 rounded-full h-2">
-                  <div className={`${n.color} h-2 rounded-full transition-all`} style={{ width: `${n.pct}%` }} />
+
+                <div className="flex flex-wrap gap-3">
+                  <RecipeMetaBadge icon={<HiClock />} label="Thời gian" value={`${recipe.cookingTime || 0} phút`} />
+                  <RecipeMetaBadge icon={<HiFire />} label="Năng lượng" value={`${Number(recipe.calories || 0).toLocaleString('vi-VN')} kcal`} />
+                  <RecipeMetaBadge icon={<HiUsers />} label="Khẩu phần" value={`${servings} người`} />
+                  <RecipeMetaBadge icon={<HiStar className="text-amber-400" />} label="Đánh giá" value={ratingCount > 0 ? `${averageRating.toFixed(1)} (${ratingCount})` : 'Chưa có'} />
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
 
-        <div className="card-dashboard bg-white">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="font-bold text-slate-900 text-base">Nguyên liệu</h2>
-            <span className="text-xs font-bold text-brand-primary bg-brand-primary/10 border border-brand-primary/20 px-2.5 py-1 rounded-brand-sm">
-              Quy đổi cho {servings} người
-            </span>
-          </div>
-          <ul className="space-y-2 divide-y divide-slate-100">
-            {(Array.isArray(recipe.ingredients) ? recipe.ingredients : []).map((ing: any, i: number) => {
-              const baseServings = Number(recipe.servings) || 4;
-              const scale = servings / (baseServings > 0 ? baseServings : 4);
-              const originalQty = Number(ing.quantity);
-
-              let displayQty = '';
-              if (!isNaN(originalQty) && originalQty > 0) {
-                const scaledQty = originalQty * scale;
-                displayQty = String(Math.round(scaledQty * 100) / 100);
-              }
-
-              return (
-                <li key={i} className="flex justify-between items-center text-sm py-2 border-b border-brand-light-border last:border-0 font-medium">
-                  <span className="text-slate-700">{ing.name}</span>
-                  <span className="text-slate-500 font-bold">
-                    {displayQty} {ing.unit}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-
-        <div className="card-dashboard bg-white lg:col-span-1">
-          <h2 className="font-bold text-slate-900 text-base mb-4">Cách nấu</h2>
-          <ol className="space-y-3">
-            {(Array.isArray(recipe.steps) ? recipe.steps : []).map((step: any, i: number) => (
-              <li key={i} className="flex gap-3">
-                <span className="flex-shrink-0 w-6 h-6 bg-brand-primary/10 text-brand-primary rounded-full text-xs font-bold flex items-center justify-center">
-                  {step.step}
-                </span>
-                <p className="text-sm text-slate-700 leading-relaxed font-medium">{step.description}</p>
-              </li>
-            ))}
-          </ol>
-        </div>
-      </div>
-
-      {/* Đánh giá & Bình luận */}
-      <div className="card-dashboard bg-white space-y-6">
-        <div className="flex items-center justify-between border-b border-brand-light-border pb-4">
-          <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-            ⭐ Đánh Giá & Bình Luận ({totalRatings})
-          </h2>
-          {Number(recipe.averageRating) > 0 && (
-            <div className="flex items-center gap-1 text-amber-500 font-bold text-lg">
-              <span>{Number(recipe.averageRating || 0).toFixed(1)} / 5</span>
-              <HiStar className="text-amber-450" />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <button onClick={openPlanSelector} className="btn-primary h-12 justify-center text-base">
+                  <HiCalendar className="text-lg" />
+                  Thêm vào thực đơn
+                </button>
+                <button
+                  onClick={toggleFav}
+                  disabled={favoriteSubmitting}
+                  className={`inline-flex h-12 items-center justify-center gap-2 rounded-brand-sm border px-4 text-sm font-bold transition-all ${
+                    isFav
+                      ? 'border-brand-danger/30 bg-red-50 text-brand-danger shadow-brand-sm'
+                      : 'border-brand-light-border bg-white text-slate-700 hover:border-brand-danger/30 hover:bg-red-50/40 hover:text-brand-danger'
+                  } ${favoriteSubmitting ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
+                  aria-label="Yêu thích"
+                >
+                  {isFav ? <HiHeart className="text-xl" /> : <HiOutlineHeart className="text-xl" />}
+                  {isFav ? 'Đã yêu thích' : 'Yêu thích'}
+                </button>
+              </div>
             </div>
-          )}
-        </div>
+          </div>
+        </section>
+
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_390px]">
+          <main className="space-y-6">
+            <section className="rounded-brand-lg border border-brand-light-border bg-white p-5 shadow-brand-sm sm:p-6">
+              <SectionHeader number="1" title="Nguyên liệu" subtitle={`Quy đổi cho ${servings} người`} />
+              <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-slate-500">
+                  Tích chọn nguyên liệu khi chuẩn bị để dễ theo dõi quá trình nấu.
+                </p>
+                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-brand-light-border bg-slate-50 p-1 shadow-brand-sm">
+                  <button
+                    type="button"
+                    onClick={() => setServings(prev => Math.max(1, prev - 1))}
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-sm font-bold text-slate-700 shadow-brand-sm transition hover:text-brand-primary"
+                    aria-label="Giảm khẩu phần"
+                  >
+                    -
+                  </button>
+                  <span className="min-w-16 text-center text-sm font-bold text-slate-900">{servings} người</span>
+                  <button
+                    type="button"
+                    onClick={() => setServings(prev => Math.min(20, prev + 1))}
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-sm font-bold text-slate-700 shadow-brand-sm transition hover:text-brand-primary"
+                    aria-label="Tăng khẩu phần"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-5 overflow-hidden rounded-brand-md border border-brand-light-border">
+                {ingredients.length === 0 ? (
+                  <div className="p-5 text-sm text-slate-500">Công thức này chưa có dữ liệu nguyên liệu.</div>
+                ) : (
+                  ingredients.map((ing: any, i: number) => (
+                    <label key={`${ing.name || 'ingredient'}-${i}`} className="flex cursor-pointer items-center justify-between gap-4 border-b border-brand-light-border bg-white px-4 py-3 last:border-b-0 hover:bg-brand-primary/5">
+                      <span className="flex min-w-0 items-center gap-3">
+                        <input type="checkbox" className="h-4 w-4 rounded border-slate-300 text-brand-primary focus:ring-brand-primary" />
+                        <span className="truncate text-sm font-semibold text-slate-800">{ing.name || 'Nguyên liệu'}</span>
+                      </span>
+                      <span className="shrink-0 rounded-full bg-slate-100 px-3 py-1 text-sm font-bold text-slate-700">
+                        {formatIngredientQuantity(ing.quantity, recipe.servings, servings)} {ing.unit || ''}
+                      </span>
+                    </label>
+                  ))
+                )}
+              </div>
+            </section>
+
+            <section className="rounded-brand-lg border border-brand-light-border bg-white p-5 shadow-brand-sm sm:p-6">
+              <SectionHeader number="2" title="Cách nấu" subtitle={`${steps.length || 0} bước thực hiện`} />
+              <ol className="mt-5 space-y-4">
+                {steps.length === 0 ? (
+                  <li className="rounded-brand-md border border-dashed border-brand-light-border bg-slate-50 p-5 text-sm text-slate-500">
+                    Công thức này chưa có hướng dẫn chế biến.
+                  </li>
+                ) : (
+                  steps.map((step: any, i: number) => (
+                    <li key={`${step.step || i}-${i}`} className="rounded-brand-md border border-brand-light-border bg-slate-50/60 p-4">
+                      <div className="flex gap-4">
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-primary text-sm font-extrabold text-white shadow-brand-sm">
+                          {step.step || i + 1}
+                        </span>
+                        <div className="min-w-0">
+                          <h3 className="font-bold text-slate-900">Bước {step.step || i + 1}</h3>
+                          <p className="mt-1 whitespace-pre-line text-sm leading-7 text-slate-700">
+                            {step.description || step.content || 'Chưa có mô tả bước nấu.'}
+                          </p>
+                        </div>
+                      </div>
+                    </li>
+                  ))
+                )}
+              </ol>
+            </section>
+
+            {/* Đánh giá & Bình luận */}
+            <section className="rounded-brand-lg border border-brand-light-border bg-white p-5 shadow-brand-sm sm:p-6">
+              <div className="flex flex-col gap-4 border-b border-brand-light-border pb-5 sm:flex-row sm:items-center sm:justify-between">
+                <SectionHeader number="3" title="Đánh giá & Bình luận" subtitle={`${totalRatings} lượt đánh giá`} />
+                <div className="flex items-center gap-2 rounded-brand-md bg-amber-50 px-4 py-2 text-amber-700">
+                  <span className="text-2xl font-extrabold">{averageRating > 0 ? averageRating.toFixed(1) : '0.0'}</span>
+                  <div>
+                    <div className="flex">
+                      {Array.from({ length: 5 }).map((_, idx) => (
+                        <HiStar key={idx} className={idx < Math.round(averageRating) ? 'text-amber-400' : 'text-amber-200'} />
+                      ))}
+                    </div>
+                    <p className="text-xs font-bold text-amber-700">{ratingCount > 0 ? `${ratingCount} đánh giá` : 'Chưa có đánh giá'}</p>
+                  </div>
+                </div>
+              </div>
 
         {/* Form viết đánh giá */}
         {user ? (
-          <form onSubmit={handleRatingSubmit} className="space-y-4 bg-slate-50 border border-brand-light-border rounded-brand-md p-4">
+          <form onSubmit={handleRatingSubmit} className="mt-5 space-y-4 rounded-brand-md border border-brand-light-border bg-slate-50 p-4">
             <h3 className="font-bold text-slate-800 text-sm">Viết đánh giá của bạn</h3>
             <div className="flex items-center gap-2">
               <span className="text-xs text-slate-500 font-bold mr-2">Đánh giá:</span>
@@ -697,12 +724,12 @@ export default function RecipeDetailPage() {
             </div>
           </form>
         ) : (
-          <div className="text-center py-6 bg-slate-50 border border-dashed border-brand-light-border rounded-brand-md">
+          <div className="mt-5 rounded-brand-md border border-dashed border-brand-light-border bg-slate-50 py-6 text-center">
             <p className="text-sm text-slate-500">Vui lòng đăng nhập để đánh giá món ăn này.</p>
           </div>
         )}
 
-        <div className="space-y-4 divide-y divide-brand-light-border">
+        <div className="mt-5 space-y-4 divide-y divide-brand-light-border">
           {ratings.length === 0 ? (
             <p className="text-center text-sm text-slate-400 py-6">Chưa có bình luận nào cho món ăn này. Hãy là người đầu tiên chia sẻ cảm nhận!</p>
           ) : (
@@ -885,8 +912,80 @@ export default function RecipeDetailPage() {
               );
             })
           )}
+              </div>
+            </section>
+          </main>
+
+          <aside className="space-y-4 lg:sticky lg:top-24">
+            <section className="rounded-brand-lg border border-brand-light-border bg-white p-5 shadow-brand-sm">
+              <h2 className="text-lg font-bold text-slate-950">Thông tin dinh dưỡng</h2>
+              <p className="mt-1 text-sm text-slate-500">Ước tính cho một khẩu phần món ăn.</p>
+              <div className="mt-5 space-y-4">
+                {NUTRITION_ITEMS.map((item) => {
+                  const value = Number(recipe[item.key] || 0);
+                  const pct = Math.min(100, (value / item.max) * 100);
+
+                  return (
+                    <div key={item.key}>
+                      <div className="mb-1.5 flex items-center justify-between text-sm">
+                        <span className="font-semibold text-slate-600">{item.label}</span>
+                        <span className="font-extrabold text-slate-950">
+                          {value.toLocaleString('vi-VN')} {item.unit}
+                        </span>
+                      </div>
+                      <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
+                        <div className={`${item.color} h-full rounded-full transition-all`} style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+
+            <section className="rounded-brand-lg border border-brand-light-border bg-white p-5 shadow-brand-sm">
+              <h2 className="text-lg font-bold text-slate-950">Tóm tắt nhanh</h2>
+              <div className="mt-4 space-y-3 text-sm">
+                <div className="flex items-center justify-between border-b border-brand-light-border pb-3">
+                  <span className="text-slate-500">Thời gian nấu</span>
+                  <span className="font-bold text-slate-900">{recipe.cookingTime || 0} phút</span>
+                </div>
+                <div className="flex items-center justify-between border-b border-brand-light-border pb-3">
+                  <span className="text-slate-500">Khẩu phần gốc</span>
+                  <span className="font-bold text-slate-900">{recipe.servings || 4} người</span>
+                </div>
+                <div className="flex items-center justify-between border-b border-brand-light-border pb-3">
+                  <span className="text-slate-500">Độ khó</span>
+                  <span className="font-bold text-slate-900">{getDifficultyLabel(recipe.difficulty)}</span>
+                </div>
+                <div className="flex items-start justify-between gap-4">
+                  <span className="text-slate-500">Phù hợp</span>
+                  <span className="text-right font-bold text-slate-900">
+                    {mealTypeLabels.length > 0 ? mealTypeLabels.join(', ') : 'Nhiều bữa'}
+                  </span>
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-brand-lg border border-brand-primary/20 bg-gradient-to-br from-brand-primary to-brand-teal p-5 text-white shadow-brand-md">
+              <h2 className="text-lg font-bold">Hành động</h2>
+              <p className="mt-1 text-sm text-white/80">Lưu công thức hoặc đưa món này vào thực đơn tuần.</p>
+              <div className="mt-5 space-y-3">
+                <button onClick={openPlanSelector} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-brand-sm bg-white px-4 text-sm font-extrabold text-brand-primary shadow-brand-sm transition hover:bg-brand-light-bg">
+                  <HiCalendar className="text-lg" />
+                  Thêm vào thực đơn
+                </button>
+                <button
+                  onClick={toggleFav}
+                  disabled={favoriteSubmitting}
+                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-brand-sm border border-white/30 bg-white/10 px-4 text-sm font-bold text-white transition hover:bg-white/20 disabled:opacity-70"
+                >
+                  {isFav ? <HiHeart className="text-xl" /> : <HiOutlineHeart className="text-xl" />}
+                  {isFav ? 'Bỏ yêu thích' : 'Thêm yêu thích'}
+                </button>
+              </div>
+            </section>
+          </aside>
         </div>
-      </div>
 
       {planSelectorOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
@@ -1038,6 +1137,7 @@ export default function RecipeDetailPage() {
           onConfirm={manualAddWarningModal.onConfirm}
         />
       )}
+      </div>
     </div>
   );
 }
@@ -1088,4 +1188,35 @@ function getFirstAvailableMeal(dateStr: string): string {
   if (!isPastMealSlot(dateStr, 'lunch')) return 'lunch';
   if (!isPastMealSlot(dateStr, 'dinner')) return 'dinner';
   return 'breakfast';
+}
+
+function getDifficultyLabel(difficulty?: string | null): string {
+  if (difficulty === 'easy') return 'Dễ';
+  if (difficulty === 'medium') return 'Trung bình';
+  if (difficulty === 'hard') return 'Khó';
+  return 'Chưa phân loại';
+}
+
+function getMealTypeLabels(mealType: unknown): string[] {
+  const labels: Record<string, string> = {
+    breakfast: 'sáng',
+    lunch: 'trưa',
+    dinner: 'tối',
+  };
+
+  if (!Array.isArray(mealType)) return [];
+  return mealType
+    .map((type) => labels[String(type)])
+    .filter(Boolean);
+}
+
+function formatIngredientQuantity(quantity: unknown, baseServings: unknown, currentServings: number): string {
+  const originalQty = Number(quantity);
+  if (!Number.isFinite(originalQty) || originalQty <= 0) return '';
+
+  const base = Number(baseServings) > 0 ? Number(baseServings) : 4;
+  const scaledQty = originalQty * (currentServings / base);
+  const rounded = Math.round(scaledQty * 100) / 100;
+
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2).replace(/\.?0+$/, '');
 }
