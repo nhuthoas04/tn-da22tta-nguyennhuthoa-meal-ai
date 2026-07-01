@@ -584,9 +584,9 @@ export default function RecipeDetailPage() {
           </div>
         </section>
 
-        <div className="grid gap-7 lg:grid-cols-[minmax(0,2fr)_minmax(360px,1fr)] xl:grid-cols-[minmax(0,2fr)_minmax(390px,1fr)]">
-          <main className="space-y-6">
-            <section className="rounded-brand-lg border border-emerald-100 bg-white p-5 shadow-brand-sm sm:p-6">
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <section className="rounded-brand-lg border border-emerald-100 bg-white p-5 shadow-brand-sm sm:p-6 lg:col-span-2">
               <SectionHeader number="1" title="Nguyên liệu" subtitle={`Quy đổi cho ${servings} người`} />
               <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm text-slate-500">
@@ -631,6 +631,32 @@ export default function RecipeDetailPage() {
                 )}
               </div>
             </section>
+
+            <section className="rounded-brand-lg border border-emerald-100 bg-white p-6 shadow-brand-sm lg:col-span-1">
+              <h2 className="text-lg font-bold text-slate-950">Thông tin dinh dưỡng</h2>
+              <p className="mt-1 text-sm text-slate-500">Ước tính cho một khẩu phần món ăn.</p>
+              <div className="mt-5 space-y-4">
+                {NUTRITION_ITEMS.map((item) => {
+                  const value = Number(recipe[item.key] || 0);
+                  const pct = Math.min(100, (value / item.max) * 100);
+
+                  return (
+                    <div key={item.key}>
+                      <div className="mb-1.5 flex items-center justify-between text-sm">
+                        <span className="font-semibold text-slate-600">{item.label}</span>
+                        <span className="font-extrabold text-slate-950">
+                          {value.toLocaleString('vi-VN')} {item.unit}
+                        </span>
+                      </div>
+                      <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
+                        <div className={`${item.color} h-full rounded-full transition-all`} style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          </div>
 
             <section className="rounded-brand-lg border border-emerald-100 bg-white p-5 shadow-brand-sm sm:p-6">
               <SectionHeader number="2" title="Cách nấu" subtitle={`${steps.length || 0} bước thực hiện`} />
@@ -924,34 +950,6 @@ export default function RecipeDetailPage() {
           )}
               </div>
             </section>
-          </main>
-
-          <aside className="order-first lg:order-none lg:sticky lg:top-24">
-            <section className="rounded-brand-lg border border-emerald-100 bg-white p-6 shadow-brand-sm lg:min-h-[320px]">
-              <h2 className="text-lg font-bold text-slate-950">Thông tin dinh dưỡng</h2>
-              <p className="mt-1 text-sm text-slate-500">Ước tính cho một khẩu phần món ăn.</p>
-              <div className="mt-5 space-y-4">
-                {NUTRITION_ITEMS.map((item) => {
-                  const value = Number(recipe[item.key] || 0);
-                  const pct = Math.min(100, (value / item.max) * 100);
-
-                  return (
-                    <div key={item.key}>
-                      <div className="mb-1.5 flex items-center justify-between text-sm">
-                        <span className="font-semibold text-slate-600">{item.label}</span>
-                        <span className="font-extrabold text-slate-950">
-                          {value.toLocaleString('vi-VN')} {item.unit}
-                        </span>
-                      </div>
-                      <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
-                        <div className={`${item.color} h-full rounded-full transition-all`} style={{ width: `${pct}%` }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          </aside>
         </div>
 
       {planSelectorOpen && (
