@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Poster A1 MealAI - Nguyễn Nhựt Hóa</title>
+  <style>
+    @page { size: A1 portrait; margin: 0; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 594mm; height: 841mm; }
+    body {
+      font-family: Arial, "Helvetica Neue", sans-serif;
+      color: #17372d;
+      background: #f7fbf9;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .poster {
+      width: 594mm;
+      height: 841mm;
+      padding: 7mm 10mm 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4mm;
+      overflow: hidden;
+      background:
+        linear-gradient(90deg, #144f9b 0 17%, #087b4f 17% 86%, #74be68 86%) top/100% 4mm no-repeat,
+        #fff;
+    }
+    .header {
+      height: 69mm;
+      display: grid;
+      grid-template-columns: 54mm 1fr 58mm;
+      align-items: center;
+      gap: 6mm;
+      padding-top: 3mm;
+      border-bottom: 1.2mm solid #0c7b4e;
+    }
+    .school-logo { width: 43mm; height: 43mm; object-fit: contain; justify-self: center; }
+    .title-block { text-align: center; }
+    .eyebrow {
+      color: #145692;
+      font-size: 12.5pt;
+      font-weight: 800;
+      letter-spacing: .7pt;
+      margin-bottom: 2mm;
+    }
+    h1 {
+      margin: 0;
+      color: #075b38;
+      font-size: 42pt;
+      line-height: 1.02;
+      letter-spacing: .1pt;
+      font-weight: 900;
+    }
+    .subtitle {
+      margin: 2.2mm 0 0;
+      font-size: 15pt;
+      line-height: 1.25;
+      color: #49685f;
+      font-weight: 500;
+    }
+    .mealai-logo {
+      justify-self: end;
+      display: flex;
+      align-items: center;
+      gap: 2mm;
+      color: #123b31;
+    }
+    .spark {
+      width: 13mm; height: 13mm;
+      display: grid; place-items: center;
+      color: #04b878;
+      font-size: 30pt;
+      font-weight: 900;
+    }
+    .mealai-logo strong { display: block; font-size: 24pt; line-height: 1; }
+    .mealai-logo small {
+      display: block;
+      margin-top: 1.4mm;
+      color: #587168;
+      font-size: 8.8pt;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .green { color: #04a96f; }
+    .info-strip {
+      height: 17mm;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4mm;
+      padding: 0 5mm;
+      border: .5mm solid #8fd6b8;
+      border-radius: 3mm;
+      background: #eefaf5;
+      font-size: 13.2pt;
+      white-space: nowrap;
+    }
+    .info-strip b { color: #075f3c; }
+    .sep { color: #72a994; font-weight: 700; }
+
+    .panel {
+      border: .55mm solid #88cfae;
+      border-radius: 3.4mm;
+      background: #fff;
+      overflow: hidden;
+    }
+    .panel-pad { padding: 4mm 4.5mm; }
+    .section-title {
+      display: inline-flex;
+      align-items: center;
+      gap: 2.2mm;
+      margin: 0 0 3mm;
+      padding: 1.7mm 4mm;
+      border-radius: 2.2mm;
+      background: #087c4f;
+      color: #fff;
+      font-size: 18pt;
+      line-height: 1;
+      font-weight: 900;
+    }
+    .number {
+      display: inline-grid;
+      width: 7mm; height: 7mm;
+      place-items: center;
+      border-radius: 50%;
+      background: #f4b52c;
+      color: #075a39;
+      font-size: 12pt;
+    }
+    .overview {
+      height: 82mm;
+      display: grid;
+      grid-template-columns: 37% 63%;
+      gap: 4mm;
+    }
+    .problem-goal {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 5mm;
+    }
+    ul.clean {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 2.8mm;
+      font-size: 14.3pt;
+      line-height: 1.28;
+    }
+    ul.clean li { position: relative; padding-left: 5mm; }
+    ul.clean li::before {
+      content: "";
+      position: absolute;
+      left: 0; top: .48em;
+      width: 2.1mm; height: 2.1mm;
+      border-radius: 50%;
+      background: #0bb87a;
+    }
+    .functions {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 3mm;
+    }
+    .function {
+      min-height: 25mm;
+      display: grid;
+      grid-template-columns: 10mm 1fr;
+      gap: 2.5mm;
+      align-items: center;
+      padding: 3mm;
+      border: .35mm solid #b8dfce;
+      border-radius: 2.3mm;
+      background: #f4fbf8;
+    }
+    .function-icon {
+      width: 9mm; height: 9mm;
+      display: grid; place-items: center;
+      border-radius: 2mm;
+      background: #dcf6ea;
+      color: #087c4f;
+      font-size: 10.5pt;
+      font-weight: 900;
+    }
+    .function h3 {
+      margin: 0 0 1mm;
+      color: #096543;
+      font-size: 13.2pt;
+      line-height: 1.08;
+    }
+    .function p {
+      margin: 0;
+      color: #587068;
+      font-size: 10.5pt;
+      line-height: 1.18;
+    }
+
+    .system-row {
+      height: 68mm;
+      display: grid;
+      grid-template-columns: 36% 39% 25%;
+      gap: 4mm;
+    }
+    .flow {
+      display: flex;
+      align-items: stretch;
+      gap: 1.4mm;
+      margin-top: 1mm;
+    }
+    .flow-box {
+      flex: 1;
+      display: grid;
+      place-items: center;
+      min-height: 23mm;
+      padding: 2mm 1mm;
+      border: .35mm solid #98d4b8;
+      border-radius: 2mm;
+      background: #eef9f4;
+      text-align: center;
+      color: #154f3d;
+      font-size: 10.5pt;
+      line-height: 1.15;
+      font-weight: 800;
+    }
+    .arrow { align-self: center; color: #099665; font-size: 17pt; font-weight: 900; }
+    .note {
+      margin: 2.7mm 0 0;
+      text-align: center;
+      color: #60776f;
+      font-size: 10.5pt;
+      line-height: 1.2;
+    }
+    .algo-tiers {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3mm;
+    }
+    .tier {
+      min-height: 26mm;
+      padding: 2.8mm;
+      border-left: 1.3mm solid #0ca56e;
+      border-radius: 1.8mm;
+      background: #f1faf6;
+    }
+    .tier strong { display: block; color: #075d3b; font-size: 11.5pt; margin-bottom: 1mm; }
+    .tier span { display: block; color: #526e64; font-size: 10.3pt; line-height: 1.25; }
+    .formula {
+      margin-top: 2.5mm;
+      padding: 2mm;
+      border: .35mm solid #e4b442;
+      border-radius: 1.7mm;
+      background: #fff8e7;
+      color: #664a08;
+      text-align: center;
+      font-size: 10.4pt;
+      line-height: 1.2;
+      font-weight: 800;
+    }
+    .tech-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2.5mm;
+    }
+    .tech {
+      min-height: 22mm;
+      padding: 2.5mm;
+      border: .35mm solid #b6d5e8;
+      border-radius: 1.8mm;
+      background: #f2f8fc;
+    }
+    .tech b { display: block; color: #145d86; font-size: 10.8pt; margin-bottom: .7mm; }
+    .tech span { color: #526b78; font-size: 9.7pt; line-height: 1.2; }
+
+    .demo {
+      height: 530mm;
+      padding: 4mm;
+      display: flex;
+      flex-direction: column;
+    }
+    .demo-head {
+      height: 13mm;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+    }
+    .demo-head .section-title { margin: 0; }
+    .demo-head p {
+      margin: 1mm 0 0;
+      color: #597169;
+      font-size: 11pt;
+      font-weight: 600;
+    }
+    .demo-grid {
+      flex: 1;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: 177mm 155mm 155mm;
+      gap: 3mm;
+    }
+    .demo-card {
+      min-width: 0;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      border: .4mm solid #b7ddcd;
+      border-radius: 2.4mm;
+      overflow: hidden;
+      background: #fff;
+    }
+    .demo-card.span-2 { grid-column: span 2; }
+    .shot {
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+      background: #f5f8f7;
+    }
+    .shot img {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: cover;
+      object-position: top center;
+    }
+    .shot.contain img { object-fit: contain; }
+    .caption {
+      min-height: 14mm;
+      display: flex;
+      align-items: center;
+      padding: 2.2mm 3mm;
+      border-top: .3mm solid #d5ebe1;
+      color: #294b40;
+      font-size: 11.5pt;
+      line-height: 1.2;
+      font-weight: 600;
+    }
+    .caption b { color: #06764b; margin-right: 1.5mm; white-space: nowrap; }
+
+    .bottom {
+      height: 73mm;
+      display: grid;
+      grid-template-columns: 1fr 1fr 45mm;
+      gap: 4mm;
+    }
+    .bottom .panel { padding: 4mm 4.5mm; }
+    .bottom ul.clean {
+      grid-template-columns: 1fr 1fr;
+      column-gap: 5mm;
+      row-gap: 2.2mm;
+      font-size: 11.8pt;
+    }
+    .bottom .section-title { font-size: 16pt; margin-bottom: 2.5mm; }
+    .qr {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 3mm;
+      border: .55mm solid #0a8355;
+      border-radius: 3mm;
+      background: #fff;
+      text-align: center;
+    }
+    .qr strong { color: #076b45; font-size: 9pt; line-height: 1.2; }
+    .qr img { width: 32mm; height: 32mm; margin-top: 2mm; image-rendering: crisp-edges; }
+    .footer {
+      height: 8mm;
+      margin: 0 -10mm;
+      padding: 0 10mm;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: linear-gradient(90deg, #05693f, #098358 78%, #174e97);
+      color: #fff;
+      font-size: 8.8pt;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <main class="poster">
+    <header class="header">
+      <img class="school-logo" src="logo_dai_hoc_tra_vinh.png" alt="Logo Đại học Trà Vinh" />
+      <div class="title-block">
+        <div class="eyebrow">ĐỒ ÁN TỐT NGHIỆP · NGÀNH CÔNG NGHỆ THÔNG TIN</div>
+        <h1>XÂY DỰNG HỆ THỐNG GỢI Ý LẬP THỰC ĐƠN<br />VÀ NẤU ĂN CHO GIA ĐÌNH TÍCH HỢP AI</h1>
+        <p class="subtitle">Hỗ trợ lập thực đơn, quản lý nguyên liệu, tạo danh sách mua sắm và phân tích dinh dưỡng.</p>
+      </div>
+      <div class="mealai-logo">
+        <span class="spark">✦</span>
+        <span><strong>Meal<span class="green">AI</span></strong><small>TRỢ LÝ THỰC ĐƠN THÔNG MINH</small></span>
+      </div>
+    </header>
+
+    <section class="info-strip">
+      <span><b>Sinh viên:</b> Nguyễn Nhựt Hóa</span><span class="sep">|</span>
+      <span><b>MSSV:</b> 110122006</span><span class="sep">|</span>
+      <span><b>Lớp:</b> DA22TTA</span><span class="sep">|</span>
+      <span><b>Khóa:</b> 2022</span><span class="sep">|</span>
+      <span><b>GVHD:</b> ThS. Dương Ngọc Vân Khanh</span><span class="sep">|</span>
+      <span><b>Đơn vị:</b> Đại học Trà Vinh – Trường Kỹ thuật và Công nghệ</span>
+    </section>
+
+    <section class="overview">
+      <div class="panel panel-pad problem-goal">
+        <div>
+          <h2 class="section-title"><span class="number">1</span>BÀI TOÁN</h2>
+          <ul class="clean">
+            <li>Khó lựa chọn món ăn mỗi ngày.</li>
+            <li>Dễ dư thừa và lãng phí thực phẩm.</li>
+            <li>Khó cân bằng năng lượng, dinh dưỡng.</li>
+            <li>Thiếu công cụ hỗ trợ cá nhân hóa.</li>
+          </ul>
+        </div>
+        <div>
+          <h2 class="section-title"><span class="number">2</span>MỤC TIÊU</h2>
+          <ul class="clean">
+            <li>Gợi ý và lập thực đơn ngày/tuần.</li>
+            <li>Cá nhân hóa theo TDEE và sức khỏe.</li>
+            <li>Quản lý nguyên liệu, hạn sử dụng.</li>
+            <li>Tạo danh sách mua sắm tự động.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="panel panel-pad">
+        <h2 class="section-title"><span class="number">3</span>CHỨC NĂNG CHÍNH</h2>
+        <div class="functions">
+          <article class="function"><span class="function-icon">ND</span><div><h3>Quản lý người dùng</h3><p>Tài khoản, hồ sơ và phân quyền.</p></div></article>
+          <article class="function"><span class="function-icon">CT</span><div><h3>Quản lý công thức</h3><p>Tìm kiếm, đánh giá và chia sẻ.</p></div></article>
+          <article class="function"><span class="function-icon">AI</span><div><h3>Trợ lý AI</h3><p>Gợi ý món và thao tác bằng chat.</p></div></article>
+          <article class="function"><span class="function-icon">TĐ</span><div><h3>Lập thực đơn</h3><p>Theo ngày/tuần và từng bữa.</p></div></article>
+          <article class="function"><span class="function-icon">TL</span><div><h3>Tủ lạnh thông minh</h3><p>Số lượng và hạn sử dụng.</p></div></article>
+          <article class="function"><span class="function-icon">MS</span><div><h3>Danh sách mua sắm</h3><p>Tự động tổng hợp phần còn thiếu.</p></div></article>
+          <article class="function"><span class="function-icon">DD</span><div><h3>Dinh dưỡng & AI Insights</h3><p>TDEE, calories và macro theo tuần.</p></div></article>
+          <article class="function"><span class="function-icon">QT</span><div><h3>Quản trị hệ thống</h3><p>Kiểm duyệt người dùng và nội dung.</p></div></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="system-row">
+      <div class="panel panel-pad">
+        <h2 class="section-title"><span class="number">4</span>KIẾN TRÚC</h2>
+        <div class="flow">
+          <div class="flow-box">Người dùng<br />Web / Mobile</div><span class="arrow">›</span>
+          <div class="flow-box">Frontend<br />Next.js</div><span class="arrow">›</span>
+          <div class="flow-box">Backend API<br />NestJS</div><span class="arrow">›</span>
+          <div class="flow-box">PostgreSQL<br />TypeORM</div><span class="arrow">›</span>
+          <div class="flow-box">AI & Email<br />Gemini / Resend</div>
+        </div>
+        <p class="note">Triển khai: Frontend trên Vercel · Backend và PostgreSQL trên Render</p>
+      </div>
+
+      <div class="panel panel-pad">
+        <h2 class="section-title"><span class="number">5</span>THUẬT TOÁN GỢI Ý</h2>
+        <div class="algo-tiers">
+          <div class="tier"><strong>Tầng 1 · Rule-Based Filtering</strong><span>Dị ứng · Sức khỏe · Bữa đã qua · Số người ăn · Món trùng lặp</span></div>
+          <div class="tier"><strong>Tầng 2 · Scoring-Based Ranking</strong><span>Dinh dưỡng · Nguyên liệu · Sở thích · Chống lãng phí · Calories/TDEE</span></div>
+        </div>
+        <div class="formula">Final Score = Σ(điểm thành phần × trọng số) + món mới − phạt lặp</div>
+      </div>
+
+      <div class="panel panel-pad">
+        <h2 class="section-title"><span class="number">6</span>CÔNG NGHỆ</h2>
+        <div class="tech-grid">
+          <div class="tech"><b>Frontend</b><span>Next.js · React<br />TypeScript · Tailwind CSS</span></div>
+          <div class="tech"><b>Backend</b><span>NestJS · JWT<br />Passport · bcryptjs</span></div>
+          <div class="tech"><b>Database</b><span>PostgreSQL<br />TypeORM · pgAdmin</span></div>
+          <div class="tech"><b>AI & Deploy</b><span>Gemini · Resend<br />Vercel · Render</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel demo">
+      <div class="demo-head">
+        <h2 class="section-title"><span class="number">7</span>HÌNH ẢNH DEMO HỆ THỐNG</h2>
+        <p>Giao diện thực tế của MealAI sau khi triển khai.</p>
+      </div>
+      <div class="demo-grid">
+        <figure class="demo-card span-2">
+          <div class="shot"><img src="_scratch_report_media/image43.png" alt="Trang lập thực đơn" /></div>
+          <figcaption class="caption"><b>Hình 1.</b>Lập thực đơn tuần, phân bổ món theo bữa và theo dõi calories/người.</figcaption>
+        </figure>
+        <figure class="demo-card">
+          <div class="shot"><img src="_scratch_report_media/image45.png" alt="Trang dinh dưỡng" /></div>
+          <figcaption class="caption"><b>Hình 2.</b>Theo dõi calories, protein, carbs, fat và mục tiêu dinh dưỡng.</figcaption>
+        </figure>
+
+        <figure class="demo-card">
+          <div class="shot"><img src="_scratch_report_media/image44.png" alt="Danh sách mua sắm" /></div>
+          <figcaption class="caption"><b>Hình 3.</b>Tạo danh sách mua sắm và tự trừ nguyên liệu còn trong tủ lạnh.</figcaption>
+        </figure>
+        <figure class="demo-card">
+          <div class="shot"><img src="_scratch_report_media/image42.png" alt="Tủ lạnh" /></div>
+          <figcaption class="caption"><b>Hình 4.</b>Quản lý nguyên liệu, số lượng và hạn sử dụng.</figcaption>
+        </figure>
+        <figure class="demo-card">
+          <div class="shot"><img src="_scratch_report_media/image49.png" alt="TDEE và hồ sơ sức khỏe" /></div>
+          <figcaption class="caption"><b>Hình 5.</b>Tính TDEE và cá nhân hóa theo mục tiêu, hồ sơ sức khỏe.</figcaption>
+        </figure>
+
+        <figure class="demo-card">
+          <div class="shot"><img src="_scratch_report_media/image41.png" alt="Chi tiết công thức" /></div>
+          <figcaption class="caption"><b>Hình 6.</b>Xem công thức, dinh dưỡng, nguyên liệu và các bước chế biến.</figcaption>
+        </figure>
+        <figure class="demo-card span-2">
+          <div class="shot"><img src="_scratch_report_media/image35.png" alt="Trang quản trị" /></div>
+          <figcaption class="caption"><b>Hình 7.</b>Giao diện quản trị riêng: người dùng, công thức và kiểm duyệt nội dung.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="bottom">
+      <div class="panel">
+        <h2 class="section-title"><span class="number">8</span>KẾT QUẢ ĐẠT ĐƯỢC</h2>
+        <ul class="clean">
+          <li>Hoàn thiện website MealAI và triển khai trực tuyến.</li>
+          <li>Lập thực đơn ngày/tuần theo nhu cầu gia đình.</li>
+          <li>Gợi ý món theo nguyên liệu, sức khỏe và TDEE.</li>
+          <li>Quản lý tủ lạnh và tạo danh sách mua sắm.</li>
+          <li>Theo dõi dinh dưỡng và phân tích AI Insights.</li>
+          <li>Hỗ trợ chia sẻ công thức và kiểm duyệt nội dung.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h2 class="section-title"><span class="number">9</span>HƯỚNG PHÁT TRIỂN</h2>
+        <ul class="clean">
+          <li>Mở rộng dữ liệu món ăn và dinh dưỡng Việt Nam.</li>
+          <li>Nâng cấp cá nhân hóa bằng Machine Learning.</li>
+          <li>Tích hợp OCR nhận diện nguyên liệu từ hình ảnh.</li>
+          <li>Phát triển ứng dụng mobile đa nền tảng.</li>
+          <li>Phân tích sâu hơn hồ sơ sức khỏe và thói quen.</li>
+          <li>Tăng cường bảo mật và khả năng mở rộng.</li>
+        </ul>
+      </div>
+      <div class="qr">
+        <strong>QUÉT ĐỂ XEM DEMO<br />HỆ THỐNG MEALAI</strong>
+        <img src="qrcode web demo.png" alt="QR demo MealAI" />
+      </div>
+    </section>
+
+    <footer class="footer">
+      <span>Đồ án tốt nghiệp ngành Công nghệ thông tin · 2026</span>
+      <span>Nguyễn Nhựt Hóa · MSSV 110122006</span>
+      <span>MealAI · Đại học Trà Vinh</span>
+    </footer>
+  </main>
+</body>
+</html>
