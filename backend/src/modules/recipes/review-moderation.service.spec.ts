@@ -1,83 +1,61 @@
-import { ReviewModerationService } from './review-moderation.service';
 import { INAPPROPRIATE_REVIEW_TEXT } from './bad-words';
+import { ReviewModerationService } from './review-moderation.service';
 
 describe('ReviewModerationService', () => {
   const service = new ReviewModerationService();
 
-  it('does not flag normal Vietnamese cooking comments', () => {
-    const result = service.filterBadWords(
-      'Món này rất ngon, đủ cho các phần ăn lớn.',
-    );
-
-    expect(result.isViolating).toBe(false);
-    expect(result.censoredText).toBe(
-      'Món này rất ngon, đủ cho các phần ăn lớn.',
-    );
-  });
-
-  it('flags banned words without case sensitivity', () => {
-    const result = service.filterBadWords('Món này như LỒN');
-
-    expect(result.isViolating).toBe(true);
-    expect(result.matchedWords).toContain('như lồn');
-    expect(result.censoredText).toBe(INAPPROPRIATE_REVIEW_TEXT);
-  });
-
   it.each([
-    ['như con c', 'như con c'],
-    ['NHƯ CON C', 'như con c'],
-    ['nhu con c', 'nhu con c'],
-    ['như con c.', 'như con c'],
-    ['như, con c', 'như con c'],
-    ['như cc', 'như cc'],
-    ['cc', 'cc'],
-  ])('flags Vietnamese contextual profanity: %s', (input, expectedWord) => {
+    'món ngon',
+    'món hơi mặn',
+    'nấu chưa hợp khẩu vị',
+    'món này cần cải thiện',
+    'không ngon lắm nhưng vẫn ổn',
+    'Món này rất ngon, đủ cho các phần ăn lớn.',
+    'Database công thức đang hoạt động ổn định',
+    'Vitamin C giúp món ăn cân bằng hơn',
+  ])('does not flag a normal review: %s', (input) => {
     const result = service.filterBadWords(input);
 
-    expect(result.isViolating).toBe(true);
-    expect(result.matchedWords).toContain(expectedWord);
-    expect(result.censoredText).toBe(INAPPROPRIATE_REVIEW_TEXT);
-  });
-
-  it('does not flag the letter c outside profane context', () => {
-    const result = service.filterBadWords('Vitamin C giúp món ăn cân bằng hơn');
-
     expect(result.isViolating).toBe(false);
+    expect(result.censoredText).toBe(input);
+    expect(result.matchedWords).toEqual([]);
   });
 
   it.each([
-    ['đỡ như db', 'nhu db'],
-    ['ĐỠ NHƯ DB.', 'nhu db'],
+    ['như cứt', 'nhu cut'],
+    ['Như cứt.', 'nhu cut'],
+    ['nhu cut', 'nhu cut'],
+    ['đỡ như db', 'do nhu db'],
+    ['ĐỠ NHƯ DB.', 'do nhu db'],
     ['như đb', 'nhu db'],
     ['đ b', 'db'],
-    ['DB', 'db'],
-  ])('flags abbreviated Vietnamese profanity: %s', (input, expectedWord) => {
+    ['như con c', 'nhu con c'],
+    ['NHƯ, CON C.', 'nhu con c'],
+    ['cc', 'cc'],
+    ['món như cứt', 'mon nhu cut'],
+    ['nấu như cứt', 'nau nhu cut'],
+    ['ngu', 'ngu'],
+    ['óc chó', 'oc cho'],
+    ['đồ ngu', 'do ngu'],
+    ['mất dạy', 'mat day'],
+    ['xàm l', 'xam l'],
+    ['vcl', 'vcl'],
+    ['đm', 'dm'],
+    ['d m', 'dm'],
+    ['cặc', 'cặc'],
+    ['lồn', 'lồn'],
+    ['đụ', 'đụ'],
+    ['chó', 'chó'],
+  ])('flags inappropriate Vietnamese content: %s', (input, expectedWord) => {
     const result = service.filterBadWords(input);
 
     expect(result.isViolating).toBe(true);
     expect(result.matchedWords).toContain(expectedWord);
     expect(result.censoredText).toBe(INAPPROPRIATE_REVIEW_TEXT);
-  });
-
-  it('does not flag db inside a longer word', () => {
-    const result = service.filterBadWords(
-      'Database công thức đang hoạt động ổn định',
-    );
-
-    expect(result.isViolating).toBe(false);
-  });
-
-  it('flags common obfuscated banned words', () => {
-    const result = service.filterBadWords('d.m món này');
-
-    expect(result.isViolating).toBe(true);
-    expect(result.matchedWords).toContain('dm');
   });
 
   it('accepts an empty review for star-only ratings', () => {
-    const result = service.filterBadWords('');
-
-    expect(result).toEqual({
+    expect(service.filterBadWords('')).toEqual({
       isViolating: false,
       censoredText: '',
       matchedWords: [],
