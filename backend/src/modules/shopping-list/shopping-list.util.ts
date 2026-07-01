@@ -93,6 +93,16 @@ export function calculateSmartShoppingDiff(
   };
 }
 
+export function calculateServingFactor(
+  userServingsInput: number,
+  recipeServingsInput: number,
+) {
+  const userServings = Math.max(1, Number(userServingsInput) || 1);
+  const recipeServings = Math.max(1, Number(recipeServingsInput) || 1);
+
+  return userServings / recipeServings;
+}
+
 function isExpired(value: Date | string | null | undefined, todayStart: Date) {
   if (!value) return false;
   return startOfDay(new Date(value)).getTime() < todayStart.getTime();

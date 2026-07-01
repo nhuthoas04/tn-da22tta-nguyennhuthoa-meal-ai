@@ -1,4 +1,7 @@
-import { calculateSmartShoppingDiff } from './shopping-list.util';
+import {
+  calculateServingFactor,
+  calculateSmartShoppingDiff,
+} from './shopping-list.util';
 
 const needs = [
   {
@@ -72,5 +75,25 @@ describe('calculateSmartShoppingDiff', () => {
 
     expect(before.toBuy[0].missingQuantity).toBe(400);
     expect(after.toBuy[0].missingQuantity).toBe(100);
+  });
+});
+
+describe('calculateServingFactor', () => {
+  it('scales recipe ingredients from one serving to family servings', () => {
+    expect(calculateServingFactor(4, 1)).toBe(4);
+  });
+
+  it('scales recipe ingredients relative to the original recipe servings', () => {
+    expect(calculateServingFactor(4, 2)).toBe(2);
+    expect(calculateServingFactor(4, 4)).toBe(1);
+  });
+
+  it('does not change per-person calories; it only returns an ingredient quantity factor', () => {
+    const caloriesPerServing = 450;
+    const factor = calculateServingFactor(4, 1);
+
+    expect(caloriesPerServing).toBe(450);
+    expect(caloriesPerServing * factor).toBe(1800);
+    expect(factor).toBe(4);
   });
 });

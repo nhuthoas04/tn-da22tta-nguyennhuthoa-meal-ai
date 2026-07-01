@@ -9,6 +9,9 @@ export interface MealPortionWarningResult {
   servings: number;
   totalDishes: number;
   maxRecommendedDishes: number;
+  dailyCaloriesPerPerson: number;
+  totalFamilyCaloriesNeeded: number;
+  /** @deprecated Use totalFamilyCaloriesNeeded for family-level display. */
   totalCaloriesNeeded: number;
   totalPortions: number;
   message: string | null;
@@ -64,6 +67,8 @@ export function calculateMealPortionWarning(input: MealPortionWarningInput, isAi
     servings,
     totalDishes,
     maxRecommendedDishes,
+    dailyCaloriesPerPerson: Math.round(dailyCalories),
+    totalFamilyCaloriesNeeded: Math.round(dailyCalories * servings),
     totalCaloriesNeeded: Math.round(dailyCalories * servings),
     totalPortions: totalDishes * servings,
     message,

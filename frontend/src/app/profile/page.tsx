@@ -400,6 +400,9 @@ export default function ProfilePage() {
                 <p className="font-extrabold text-slate-900 text-sm mt-1.5">{adjustedMealTargets.dinner} kcal</p>
               </div>
             </div>
+            <p className="relative z-10 mt-3 rounded-brand-sm border border-brand-primary/10 bg-white/70 px-3 py-2 text-xs font-medium leading-relaxed text-slate-500">
+              Mục tiêu calories được tính cho người dùng hiện tại. Số người ăn chỉ dùng để quy đổi khẩu phần, nguyên liệu và danh sách mua sắm.
+            </p>
           </div>
         ) : (
           <div className="bg-amber-50/50 border border-brand-warning/30 rounded-brand-sm p-4 mt-4 text-sm text-amber-800 flex items-start gap-2 font-medium">
@@ -729,7 +732,7 @@ export default function ProfilePage() {
               <p className="mt-1.5 text-[10px] font-semibold text-red-600">{servingsError}</p>
             ) : (
               <p className="mt-1.5 text-[10px] font-medium text-slate-400">
-                Bắt buộc nhập số người ăn để hệ thống gợi ý khẩu phần chính xác.
+                Dùng để quy đổi khẩu phần, nguyên liệu và danh sách mua sắm; không nhân mục tiêu TDEE cá nhân.
               </p>
             )}
           </div>

@@ -8,6 +8,7 @@ import { Recipe } from '../recipes/entities/recipe.entity';
 import { Inventory } from '../inventory/entities/inventory.entity';
 import { User } from '../auth/entities/user.entity';
 import { InventoryAllocation } from '../inventory/entities/inventory-allocation.entity';
+import { calculateServingFactor } from './shopping-list.util';
 
 type NeedSource = {
   mealPlanItemId?: string;
@@ -336,7 +337,7 @@ export class ShoppingListService {
     await this.listRepo.save(list);
 
     const recipeServings = recipe.servings || 4;
-    const scale = userServings / recipeServings;
+    const scale = calculateServingFactor(userServings, recipeServings);
     const needs = this.aggregateNeedsFromRecipe(recipe, scale);
 
     await this.fillShoppingListFromNeeds({
@@ -723,7 +724,7 @@ export class ShoppingListService {
       if (!planItem.recipe?.recipeIngredients) continue;
 
       const recipeServings = planItem.recipe.servings || 4;
-      const scale = userServings / recipeServings;
+      const scale = calculateServingFactor(userServings, recipeServings);
 
       for (const ri of planItem.recipe.recipeIngredients) {
         if (ri.isOptional) continue;
