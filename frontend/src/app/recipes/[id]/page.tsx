@@ -584,7 +584,7 @@ export default function RecipeDetailPage() {
           </div>
         </section>
 
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_390px]">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_360px]">
           <main className="space-y-6">
             <section className="rounded-brand-lg border border-brand-light-border bg-white p-5 shadow-brand-sm sm:p-6">
               <SectionHeader number="1" title="Nguyên liệu" subtitle={`Quy đổi cho ${servings} người`} />
@@ -613,17 +613,17 @@ export default function RecipeDetailPage() {
                 </div>
               </div>
 
-              <div className="mt-5 overflow-hidden rounded-brand-md border border-brand-light-border">
+              <div className={`mt-4 overflow-hidden rounded-brand-md border border-brand-light-border ${ingredients.length > 10 ? 'max-h-[390px] overflow-y-auto' : ''}`}>
                 {ingredients.length === 0 ? (
                   <div className="p-5 text-sm text-slate-500">Công thức này chưa có dữ liệu nguyên liệu.</div>
                 ) : (
                   ingredients.map((ing: any, i: number) => (
-                    <label key={`${ing.name || 'ingredient'}-${i}`} className="flex cursor-pointer items-center justify-between gap-4 border-b border-brand-light-border bg-white px-4 py-3 last:border-b-0 hover:bg-brand-primary/5">
+                    <label key={`${ing.name || 'ingredient'}-${i}`} className="flex cursor-pointer items-center justify-between gap-3 border-b border-brand-light-border bg-white px-3.5 py-2.5 last:border-b-0 hover:bg-brand-primary/5">
                       <span className="flex min-w-0 items-center gap-3">
                         <input type="checkbox" className="h-4 w-4 rounded border-slate-300 text-brand-primary focus:ring-brand-primary" />
                         <span className="truncate text-sm font-semibold text-slate-800">{ing.name || 'Nguyên liệu'}</span>
                       </span>
-                      <span className="shrink-0 rounded-full bg-slate-100 px-3 py-1 text-sm font-bold text-slate-700">
+                      <span className="shrink-0 rounded-full bg-brand-primary/10 px-2.5 py-1 text-xs font-bold text-slate-700 ring-1 ring-brand-primary/10">
                         {formatIngredientQuantity(ing.quantity, recipe.servings, servings)} {ing.unit || ''}
                       </span>
                     </label>
@@ -634,21 +634,21 @@ export default function RecipeDetailPage() {
 
             <section className="rounded-brand-lg border border-brand-light-border bg-white p-5 shadow-brand-sm sm:p-6">
               <SectionHeader number="2" title="Cách nấu" subtitle={`${steps.length || 0} bước thực hiện`} />
-              <ol className="mt-5 space-y-4">
+              <ol className="mt-4 space-y-3">
                 {steps.length === 0 ? (
                   <li className="rounded-brand-md border border-dashed border-brand-light-border bg-slate-50 p-5 text-sm text-slate-500">
                     Công thức này chưa có hướng dẫn chế biến.
                   </li>
                 ) : (
                   steps.map((step: any, i: number) => (
-                    <li key={`${step.step || i}-${i}`} className="rounded-brand-md border border-brand-light-border bg-slate-50/60 p-4">
-                      <div className="flex gap-4">
-                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-primary text-sm font-extrabold text-white shadow-brand-sm">
+                    <li key={`${step.step || i}-${i}`} className="rounded-brand-md border border-brand-light-border bg-white p-3.5 shadow-brand-sm">
+                      <div className="flex gap-3">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-primary/10 text-sm font-extrabold text-brand-primary ring-1 ring-brand-primary/15">
                           {step.step || i + 1}
                         </span>
                         <div className="min-w-0">
                           <h3 className="font-bold text-slate-900">Bước {step.step || i + 1}</h3>
-                          <p className="mt-1 whitespace-pre-line text-sm leading-7 text-slate-700">
+                          <p className="mt-1 whitespace-pre-line text-sm leading-6 text-slate-700">
                             {step.description || step.content || 'Chưa có mô tả bước nấu.'}
                           </p>
                         </div>
@@ -916,11 +916,11 @@ export default function RecipeDetailPage() {
             </section>
           </main>
 
-          <aside className="space-y-4 lg:sticky lg:top-24">
-            <section className="rounded-brand-lg border border-brand-light-border bg-white p-5 shadow-brand-sm">
+          <aside className="order-first lg:order-none lg:sticky lg:top-24">
+            <section className="rounded-brand-lg border border-brand-light-border bg-white p-4 shadow-brand-sm sm:p-5">
               <h2 className="text-lg font-bold text-slate-950">Thông tin dinh dưỡng</h2>
               <p className="mt-1 text-sm text-slate-500">Ước tính cho một khẩu phần món ăn.</p>
-              <div className="mt-5 space-y-4">
+              <div className="mt-4 space-y-3.5">
                 {NUTRITION_ITEMS.map((item) => {
                   const value = Number(recipe[item.key] || 0);
                   const pct = Math.min(100, (value / item.max) * 100);
@@ -933,55 +933,12 @@ export default function RecipeDetailPage() {
                           {value.toLocaleString('vi-VN')} {item.unit}
                         </span>
                       </div>
-                      <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
+                      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
                         <div className={`${item.color} h-full rounded-full transition-all`} style={{ width: `${pct}%` }} />
                       </div>
                     </div>
                   );
                 })}
-              </div>
-            </section>
-
-            <section className="rounded-brand-lg border border-brand-light-border bg-white p-5 shadow-brand-sm">
-              <h2 className="text-lg font-bold text-slate-950">Tóm tắt nhanh</h2>
-              <div className="mt-4 space-y-3 text-sm">
-                <div className="flex items-center justify-between border-b border-brand-light-border pb-3">
-                  <span className="text-slate-500">Thời gian nấu</span>
-                  <span className="font-bold text-slate-900">{recipe.cookingTime || 0} phút</span>
-                </div>
-                <div className="flex items-center justify-between border-b border-brand-light-border pb-3">
-                  <span className="text-slate-500">Khẩu phần gốc</span>
-                  <span className="font-bold text-slate-900">{recipe.servings || 4} người</span>
-                </div>
-                <div className="flex items-center justify-between border-b border-brand-light-border pb-3">
-                  <span className="text-slate-500">Độ khó</span>
-                  <span className="font-bold text-slate-900">{getDifficultyLabel(recipe.difficulty)}</span>
-                </div>
-                <div className="flex items-start justify-between gap-4">
-                  <span className="text-slate-500">Phù hợp</span>
-                  <span className="text-right font-bold text-slate-900">
-                    {mealTypeLabels.length > 0 ? mealTypeLabels.join(', ') : 'Nhiều bữa'}
-                  </span>
-                </div>
-              </div>
-            </section>
-
-            <section className="rounded-brand-lg border border-brand-primary/20 bg-gradient-to-br from-brand-primary to-brand-teal p-5 text-white shadow-brand-md">
-              <h2 className="text-lg font-bold">Hành động</h2>
-              <p className="mt-1 text-sm text-white/80">Lưu công thức hoặc đưa món này vào thực đơn tuần.</p>
-              <div className="mt-5 space-y-3">
-                <button onClick={openPlanSelector} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-brand-sm bg-white px-4 text-sm font-extrabold text-brand-primary shadow-brand-sm transition hover:bg-brand-light-bg">
-                  <HiCalendar className="text-lg" />
-                  Thêm vào thực đơn
-                </button>
-                <button
-                  onClick={toggleFav}
-                  disabled={favoriteSubmitting}
-                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-brand-sm border border-white/30 bg-white/10 px-4 text-sm font-bold text-white transition hover:bg-white/20 disabled:opacity-70"
-                >
-                  {isFav ? <HiHeart className="text-xl" /> : <HiOutlineHeart className="text-xl" />}
-                  {isFav ? 'Bỏ yêu thích' : 'Thêm yêu thích'}
-                </button>
               </div>
             </section>
           </aside>
