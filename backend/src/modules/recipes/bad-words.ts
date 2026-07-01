@@ -14,6 +14,8 @@ export const BAD_WORDS = [
   'như cc',
   'nhu cc',
   'cc',
+  'nhu db',
+  'db',
   'djt',
   'vcl',
   'đcm',

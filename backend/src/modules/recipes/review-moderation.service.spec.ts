@@ -45,6 +45,28 @@ describe('ReviewModerationService', () => {
     expect(result.isViolating).toBe(false);
   });
 
+  it.each([
+    ['đỡ như db', 'nhu db'],
+    ['ĐỠ NHƯ DB.', 'nhu db'],
+    ['như đb', 'nhu db'],
+    ['đ b', 'db'],
+    ['DB', 'db'],
+  ])('flags abbreviated Vietnamese profanity: %s', (input, expectedWord) => {
+    const result = service.filterBadWords(input);
+
+    expect(result.isViolating).toBe(true);
+    expect(result.matchedWords).toContain(expectedWord);
+    expect(result.censoredText).toBe(INAPPROPRIATE_REVIEW_TEXT);
+  });
+
+  it('does not flag db inside a longer word', () => {
+    const result = service.filterBadWords(
+      'Database công thức đang hoạt động ổn định',
+    );
+
+    expect(result.isViolating).toBe(false);
+  });
+
   it('flags common obfuscated banned words', () => {
     const result = service.filterBadWords('d.m món này');
 

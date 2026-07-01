@@ -6,17 +6,14 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import { RecipeRating } from './entities/recipe-rating.entity';
 import { Recipe } from './entities/recipe.entity';
 import { User } from '../auth/entities/user.entity';
 import { AdminNotification } from './entities/admin-notification.entity';
 import { ReviewModerationService } from './review-moderation.service';
 import { NotificationService } from '../notification/notification.service';
-import {
-  FLAGGED_REVIEW_REASON,
-  INAPPROPRIATE_REVIEW_TEXT,
-} from './bad-words';
+import { FLAGGED_REVIEW_REASON, INAPPROPRIATE_REVIEW_TEXT } from './bad-words';
 
 @Injectable()
 export class RecipeRatingService {
@@ -76,39 +73,68 @@ export class RecipeRatingService {
       : normalizedReview;
     const moderationStatus = isFlagged ? 'flagged' : 'approved';
 
-    let ratingObj = await this.ratingRepo.findOne({
-      where: { userId, recipeId },
-    });
-    const wasFlagged = ratingObj?.isFlagged === true;
+    const { savedRating, wasFlagged } =
+      await this.ratingRepo.manager.transaction(async (manager) => {
+        // Serialize submissions for the same user/recipe pair. This prevents
+        // rapid double-clicks from creating two main ratings.
+        await manager.query(
+          'SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))',
+          [userId, recipeId],
+        );
+
+        const transactionRatingRepo = manager.getRepository(RecipeRating);
+        const existingRatings = await transactionRatingRepo.find({
+          where: {
+            userId,
+            recipeId,
+            parentId: IsNull(),
+          },
+          order: {
+            updatedAt: 'DESC',
+            createdAt: 'DESC',
+          },
+        });
+
+        let ratingObj = existingRatings[0];
+        const previousFlaggedState = ratingObj?.isFlagged === true;
+
+        // Clean up historical duplicates while preserving the newest rating.
+        if (existingRatings.length > 1) {
+          await transactionRatingRepo.remove(existingRatings.slice(1));
+        }
+
+        if (ratingObj) {
+          ratingObj.rating = rating;
+          ratingObj.review = publicReview;
+          ratingObj.originalReview = isFlagged ? normalizedReview : null;
+          ratingObj.isFlagged = isFlagged;
+          ratingObj.flaggedWords = flaggedWords;
+          ratingObj.flaggedReason = flaggedReason;
+          ratingObj.moderationStatus = moderationStatus;
+        } else {
+          ratingObj = transactionRatingRepo.create({
+            userId,
+            recipeId,
+            rating,
+            review: publicReview,
+            originalReview: isFlagged ? normalizedReview : null,
+            isFlagged,
+            flaggedWords,
+            flaggedReason,
+            moderationStatus,
+          });
+        }
+
+        return {
+          savedRating: await transactionRatingRepo.save(ratingObj),
+          wasFlagged: previousFlaggedState,
+        };
+      });
 
     if (isFlagged && !wasFlagged) {
       user.violationCount = (user.violationCount || 0) + 1;
       await this.userRepo.save(user);
     }
-
-    if (ratingObj) {
-      ratingObj.rating = rating;
-      ratingObj.review = publicReview;
-      ratingObj.originalReview = isFlagged ? normalizedReview : null;
-      ratingObj.isFlagged = isFlagged;
-      ratingObj.flaggedWords = flaggedWords;
-      ratingObj.flaggedReason = flaggedReason;
-      ratingObj.moderationStatus = moderationStatus;
-    } else {
-      ratingObj = this.ratingRepo.create({
-        userId,
-        recipeId,
-        rating,
-        review: publicReview,
-        originalReview: isFlagged ? normalizedReview : null,
-        isFlagged,
-        flaggedWords,
-        flaggedReason,
-        moderationStatus,
-      });
-    }
-
-    const savedRating = await this.ratingRepo.save(ratingObj);
 
     // Send Personal Notification if not self-action and approved
     if (recipe.submittedBy && moderationStatus === 'approved') {
@@ -151,8 +177,7 @@ export class RecipeRatingService {
             reviewId: savedRating.id,
             userId: user.id,
           });
-        notification.title =
-          'Phát hiện bình luận chứa nội dung không phù hợp';
+        notification.title = 'Phát hiện bình luận chứa nội dung không phù hợp';
         notification.message = `Có đánh giá chứa từ ngữ không phù hợp trong công thức "${recipe.name}".`;
         notification.isRead = false;
         await this.notificationRepo.save(notification);
@@ -175,24 +200,42 @@ export class RecipeRatingService {
     limit = 10,
     currentUserId?: string,
   ): Promise<{ data: any[]; total: number }> {
+    const latestRatingRows: Array<{ id: string }> = await this.ratingRepo.query(
+      `
+          SELECT DISTINCT ON ("userId") "id"
+          FROM "recipe_ratings"
+          WHERE "recipeId" = $1
+            AND "parentId" IS NULL
+            AND "moderationStatus" != 'removed'
+          ORDER BY
+            "userId",
+            "updatedAt" DESC,
+            "createdAt" DESC,
+            "id" DESC
+        `,
+      [recipeId],
+    );
+    const latestRatingIds = latestRatingRows.map((row) => row.id);
+
+    if (latestRatingIds.length === 0) {
+      return { data: [], total: 0 };
+    }
+
     const qb = this.ratingRepo
       .createQueryBuilder('rating')
       .leftJoinAndSelect('rating.user', 'user')
       .leftJoinAndSelect('rating.replies', 'reply')
       .leftJoinAndSelect('reply.user', 'replyUser')
       .where('rating.recipeId = :recipeId', { recipeId })
-      .andWhere('rating.parentId IS NULL');
+      .andWhere('rating.parentId IS NULL')
+      .andWhere('rating.id IN (:...latestRatingIds)', { latestRatingIds });
 
-    qb.andWhere('rating.moderationStatus != :removedStatus', {
-      removedStatus: 'removed',
-    });
-
-    const [data, total] = await qb
+    const data = await qb
       .orderBy('rating.createdAt', 'DESC')
       .addOrderBy('reply.createdAt', 'ASC')
       .skip((page - 1) * limit)
       .take(limit)
-      .getManyAndCount();
+      .getMany();
 
     return {
       data: data.map((r) => ({
@@ -222,7 +265,7 @@ export class RecipeRatingService {
             },
           })),
       })),
-      total,
+      total: latestRatingIds.length,
     };
   }
 
@@ -339,15 +382,29 @@ export class RecipeRatingService {
   async getAverageRatingForRecipe(
     recipeId: string,
   ): Promise<{ average: number; count: number }> {
-    const result = await this.ratingRepo
-      .createQueryBuilder('rating')
-      .select('AVG(rating.rating)', 'avg')
-      .addSelect('COUNT(rating.id)', 'count')
-      .where('rating.recipeId = :recipeId', { recipeId })
-      .andWhere('rating.moderationStatus != :status', { status: 'removed' })
-      .andWhere('rating.parentId IS NULL')
-      .andWhere('rating.rating IS NOT NULL')
-      .getRawOne();
+    const [result] = await this.ratingRepo.query(
+      `
+        SELECT
+          AVG("latestRating"."rating") AS "avg",
+          COUNT("latestRating"."id") AS "count"
+        FROM (
+          SELECT DISTINCT ON ("userId")
+            "id",
+            "rating"
+          FROM "recipe_ratings"
+          WHERE "recipeId" = $1
+            AND "parentId" IS NULL
+            AND "rating" IS NOT NULL
+            AND "moderationStatus" != 'removed'
+          ORDER BY
+            "userId",
+            "updatedAt" DESC,
+            "createdAt" DESC,
+            "id" DESC
+        ) AS "latestRating"
+      `,
+      [recipeId],
+    );
 
     const count = parseInt(result?.count || '0', 10);
     const average = parseFloat(result?.avg || '0');
@@ -518,9 +575,7 @@ export class RecipeRatingService {
     return saved;
   }
 
-  async deleteFlaggedReview(
-    reviewId: string,
-  ): Promise<{ message: string }> {
+  async deleteFlaggedReview(reviewId: string): Promise<{ message: string }> {
     const review = await this.ratingRepo.findOne({ where: { id: reviewId } });
     if (!review) {
       throw new NotFoundException('Không tìm thấy bình luận.');
