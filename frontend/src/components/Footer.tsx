@@ -8,13 +8,13 @@ import ScrollReveal from '@/components/animations/ScrollReveal';
 
 export default function Footer() {
   const pathname = usePathname();
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
 
   // Hide footer on Authentication and Admin routes
   const noFooterRoutes = ['/login', '/register', '/forgot-password', '/reset-password'];
   const isNoFooterRoute = noFooterRoutes.includes(pathname) || pathname.startsWith('/admin');
 
-  if (isNoFooterRoute) {
+  if (isNoFooterRoute || isAdmin) {
     return null;
   }
 

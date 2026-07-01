@@ -29,9 +29,9 @@ export default function LoginPage() {
     const slowTimer = window.setTimeout(() => setTakingLong(true), 3000);
 
     try {
-      await login(email, password);
+      const authenticatedUser = await login(email, password);
       toast.success('Đăng nhập thành công!');
-      router.push('/');
+      router.replace(authenticatedUser.role === 'admin' ? '/admin' : '/');
     } catch (err: any) {
       let message = '';
       const status = err.response?.status;

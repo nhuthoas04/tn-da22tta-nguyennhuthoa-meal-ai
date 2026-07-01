@@ -4,25 +4,25 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 import Link from 'next/link';
 import {
-  HiChartBar, HiBookOpen, HiClipboardCheck, HiArrowLeft, HiUsers, HiBell,
+  HiChartBar, HiBookOpen, HiClipboardCheck, HiUsers, HiBell, HiLogout,
 } from 'react-icons/hi';
 
 const adminNav = [
   { href: '/admin', label: 'Tổng quan', icon: HiChartBar },
   { href: '/admin/recipes', label: 'Công thức', icon: HiBookOpen },
-  { href: '/admin/pending', label: 'Chờ duyệt', icon: HiClipboardCheck },
+  { href: '/admin/pending', label: 'Công thức chờ duyệt', icon: HiClipboardCheck },
   { href: '/admin/users', label: 'Thành viên', icon: HiUsers },
-  { href: '/admin/notifications', label: 'Cảnh báo', icon: HiBell },
+  { href: '/admin/notifications', label: 'Cảnh báo nội dung', icon: HiBell },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const { user, loading, isAdmin } = useAuth();
+  const { user, loading, isAdmin, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
     if (!loading && (!user || !isAdmin)) {
-      router.push('/');
+      router.replace(user ? '/' : '/login');
     }
   }, [user, loading, isAdmin, router]);
 
@@ -37,23 +37,26 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   if (!isAdmin) return null;
 
   return (
-    <div className="flex gap-10 min-h-[calc(100vh-100px)]">
+    <div className="flex min-h-[calc(100vh-100px)] gap-6 lg:gap-8">
       {/* Sidebar */}
-      <aside className="w-64 shrink-0">
-        <div className="bg-white rounded-2xl border border-gray-200 p-4 sticky top-24">
+      <aside className="hidden w-64 shrink-0 lg:block">
+        <div className="sticky top-24 rounded-xl border border-emerald-100 bg-white p-4 shadow-sm">
           <div className="flex items-center gap-2 mb-6 pb-4 border-b border-gray-200">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center">
               <span className="text-white text-lg font-bold">A</span>
             </div>
             <div>
-              <p className="font-semibold text-gray-900 text-sm">Admin Panel</p>
+              <p className="font-semibold text-gray-900 text-sm">MealAI Admin</p>
               <p className="text-xs text-gray-500">{user?.email}</p>
             </div>
           </div>
 
           <nav className="space-y-2">
             {adminNav.map((item) => {
-              const isActive = pathname === item.href;
+              const isActive =
+                item.href === '/admin'
+                  ? pathname === '/admin'
+                  : pathname.startsWith(item.href);
               return (
                 <Link
                   key={item.href}
@@ -71,14 +74,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             })}
           </nav>
 
-          <div className="mt-6 pt-4 border-t border-gray-200">
-            <Link
-              href="/"
-              className="flex items-center gap-2 px-3 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+          <div className="mt-6 border-t border-gray-200 pt-4">
+            <button
+              type="button"
+              onClick={logout}
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-600 transition-colors hover:bg-red-50"
             >
-              <HiArrowLeft />
-              Về trang chủ
-            </Link>
+              <HiLogout />
+              Đăng xuất
+            </button>
           </div>
         </div>
       </aside>

@@ -12,6 +12,7 @@ import {
 import { notificationsAPI } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
+import AdminNavbar from '@/components/AdminNavbar';
 
 const navItems = [
   { href: '/', label: 'Trang chủ', icon: HiHome },
@@ -169,16 +170,16 @@ export default function Navbar() {
   }, [dropdownOpen]);
 
   useEffect(() => {
-    if (user) {
+    if (user && !isAdmin) {
       loadPersonalUnreadCount();
       const interval = setInterval(loadPersonalUnreadCount, 30000);
       return () => clearInterval(interval);
     }
-  }, [user]);
+  }, [user, isAdmin]);
 
   useEffect(() => {
     const handler = () => {
-      if (user) {
+      if (user && !isAdmin) {
         loadPersonalUnreadCount();
         if (dropdownOpen) {
           loadPersonalNotifications();
@@ -187,7 +188,7 @@ export default function Navbar() {
     };
     window.addEventListener('update-personal-notifications-count', handler);
     return () => window.removeEventListener('update-personal-notifications-count', handler);
-  }, [user, dropdownOpen]);
+  }, [user, isAdmin, dropdownOpen]);
 
   useEffect(() => {
     if (user && isAdmin) {
@@ -213,6 +214,10 @@ export default function Navbar() {
       // ignore
     }
   };
+
+  if (user && isAdmin) {
+    return <AdminNavbar unreadNotifications={unreadNotifications} />;
+  }
 
   return (
     <>
