@@ -634,21 +634,21 @@ export default function RecipeDetailPage() {
 
             <section className="rounded-brand-lg border border-brand-light-border bg-white p-5 shadow-brand-sm sm:p-6">
               <SectionHeader number="2" title="Cách nấu" subtitle={`${steps.length || 0} bước thực hiện`} />
-              <ol className="mt-4 space-y-3">
+              <div className="mt-4 max-h-[440px] overflow-y-auto rounded-brand-md border border-brand-light-border bg-slate-50/60 p-2.5 sm:max-h-[520px]">
+                <ol className="space-y-2.5">
                 {steps.length === 0 ? (
-                  <li className="rounded-brand-md border border-dashed border-brand-light-border bg-slate-50 p-5 text-sm text-slate-500">
+                  <li className="rounded-brand-md border border-dashed border-brand-light-border bg-white p-5 text-sm text-slate-500">
                     Công thức này chưa có hướng dẫn chế biến.
                   </li>
                 ) : (
                   steps.map((step: any, i: number) => (
-                    <li key={`${step.step || i}-${i}`} className="rounded-brand-md border border-brand-light-border bg-white p-3.5 shadow-brand-sm">
+                    <li key={`${step.step || i}-${i}`} className="rounded-brand-sm border border-brand-light-border bg-white p-3 shadow-brand-sm">
                       <div className="flex gap-3">
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-primary/10 text-sm font-extrabold text-brand-primary ring-1 ring-brand-primary/15">
-                          {step.step || i + 1}
+                        <span className="flex h-7 shrink-0 items-center justify-center rounded-full bg-brand-primary/10 px-3 text-xs font-extrabold text-brand-primary ring-1 ring-brand-primary/15">
+                          Bước {step.step || i + 1}
                         </span>
                         <div className="min-w-0">
-                          <h3 className="font-bold text-slate-900">Bước {step.step || i + 1}</h3>
-                          <p className="mt-1 whitespace-pre-line text-sm leading-6 text-slate-700">
+                          <p className="whitespace-pre-line text-sm leading-6 text-slate-700">
                             {step.description || step.content || 'Chưa có mô tả bước nấu.'}
                           </p>
                         </div>
@@ -656,7 +656,8 @@ export default function RecipeDetailPage() {
                     </li>
                   ))
                 )}
-              </ol>
+                </ol>
+              </div>
             </section>
 
             {/* Đánh giá & Bình luận */}
@@ -917,7 +918,7 @@ export default function RecipeDetailPage() {
           </main>
 
           <aside className="order-first lg:order-none lg:sticky lg:top-24">
-            <section className="rounded-brand-lg border border-brand-light-border bg-white p-4 shadow-brand-sm sm:p-5">
+            <section className="rounded-brand-lg border border-brand-light-border bg-white p-5 shadow-brand-sm lg:min-h-[270px]">
               <h2 className="text-lg font-bold text-slate-950">Thông tin dinh dưỡng</h2>
               <p className="mt-1 text-sm text-slate-500">Ước tính cho một khẩu phần món ăn.</p>
               <div className="mt-4 space-y-3.5">
